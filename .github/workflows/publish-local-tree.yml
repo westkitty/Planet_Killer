@@ -18,7 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           cat .publish/chunk-*.txt | base64 --decode > /tmp/planet-killer-head.tar.gz
-          echo '728b37291689a4094af0e09b4c25c88e596d3ace98ac559d6e367e05410245c5  /tmp/planet-killer-head.tar.gz' | sha256sum -c -
+          echo '581e329543f80c543ea20f8ea08e67af75f3e678de5ecff221c4872302451f3f  /tmp/planet-killer-head.tar.gz' | sha256sum -c -
           mkdir /tmp/planet-killer-tree
           tar -xzf /tmp/planet-killer-head.tar.gz -C /tmp/planet-killer-tree
       - name: Publish as fast-forward child of origin/main
