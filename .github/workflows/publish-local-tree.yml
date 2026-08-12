@@ -17,10 +17,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .publish/chunk-*.txt | base64 --decode > /tmp/planet-killer-head.tar.gz
-          echo '581e329543f80c543ea20f8ea08e67af75f3e678de5ecff221c4872302451f3f  /tmp/planet-killer-head.tar.gz' | sha256sum -c -
-          mkdir /tmp/planet-killer-tree
+          cat .publish/final-*.txt | base64 --decode > /tmp/planet-killer-head.tar.gz
+          echo '2ea8cd6b97ad7625b603da633491906fa0bbde4f4ad48a03a804d2112a3529e5  /tmp/planet-killer-head.tar.gz' | sha256sum -c -
+          rm -rf /tmp/planet-killer-tree
+          mkdir -p /tmp/planet-killer-tree
           tar -xzf /tmp/planet-killer-head.tar.gz -C /tmp/planet-killer-tree
+      - name: Validate reconstructed tree
+        shell: bash
+        working-directory: /tmp/planet-killer-tree
+        run: |
+          set -euo pipefail
+          node --test tests/*.test.mjs
+          node scripts/check-project.mjs
+          node scripts/build.mjs
       - name: Publish as fast-forward child of origin/main
         shell: bash
         run: |
@@ -34,7 +43,3 @@ jobs:
           git config user.email 'andrew.dolby@westcat.ca'
           git commit -m 'Publish Planet Killer visual enhancement build'
           git push origin HEAD:main
-      - name: Remove temporary publication branch
-        if: success()
-        shell: bash
-        run: git push origin --delete tmp-do-not-use || true
