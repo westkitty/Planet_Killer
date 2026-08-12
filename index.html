@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#02050a" />
+  <meta name="description" content="Counterfactual K-Pg impact simulation." />
+  <title>Planet Killer</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main id="app" class="app" aria-label="Planet Killer impact simulation">
+    <canvas id="viewport" aria-label="Interactive three-dimensional Earth impact simulation"></canvas>
+    <div id="fallback" class="fallback" hidden role="alert"></div>
+
+    <section id="onboarding" class="onboarding" aria-labelledby="onboarding-title">
+      <p class="eyebrow">COUNTERFACTUAL K–PG SIMULATION</p>
+      <h1 id="onboarding-title">Move the impact. Change the chain.</h1>
+      <p>Drag to orbit. Scroll or pinch to zoom. Click Earth to place the target. Launch, pause, rewind, and keep the camera.</p>
+      <div class="onboarding-actions">
+        <button id="dismiss-onboarding" class="primary">Enter simulation</button>
+        <button id="open-science-intro" class="secondary">Model limits</button>
+      </div>
+    </section>
+
+    <nav id="edge-controls" class="edge-controls" aria-label="Simulation controls">
+      <button data-drawer="impactor" aria-label="Impactor and target controls" title="Impactor and target">☄</button>
+      <button data-action="launch" aria-label="Launch impact" title="Launch">▶</button>
+      <button data-drawer="camera" aria-label="Camera controls" title="Camera">◉</button>
+      <button data-drawer="compare" aria-label="Compare scenarios" title="Compare">◫</button>
+      <button data-drawer="science" aria-label="Science and results" title="Science">≋</button>
+      <button data-drawer="settings" aria-label="Settings and help" title="Settings">⚙</button>
+    </nav>
+
+    <aside id="drawer" class="drawer" hidden aria-live="polite"></aside>
+
+    <section id="timeline" class="timeline" aria-label="Simulation time controls">
+      <button data-time-action="restart" aria-label="Restart timeline">↺</button>
+      <button data-time-action="back" aria-label="Step backward">◀</button>
+      <button id="play-pause" data-time-action="play" aria-label="Play or pause">▶</button>
+      <button data-time-action="forward" aria-label="Step forward">▶</button>
+      <input id="time-slider" type="range" min="0" max="1000" step="1" value="0" aria-label="Simulation timeline" />
+      <output id="time-output" for="time-slider">−30 s</output>
+      <select id="speed-select" aria-label="Playback speed">
+        <option value="0.25">¼×</option><option value="1" selected>1×</option><option value="4">4×</option><option value="16">16×</option>
+      </select>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <p id="sr-summary" class="sr-only" aria-live="polite"></p>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

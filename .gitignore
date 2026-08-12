@@ -1,0 +1,5 @@
+dist/
+audit-output/
+docs/qa/screenshots/
+*.log
+.DS_Store

@@ -1,0 +1,16 @@
+{
+  "name": "planet-killer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Counterfactual K-Pg impact simulation with a catastrophe-first WebGL2 interface.",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check-project.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
