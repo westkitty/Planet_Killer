@@ -1,0 +1,40 @@
+name: Publish verified Planet Killer tree
+on:
+  push:
+    branches: [tmp-do-not-use]
+    paths: ['.publish-ready']
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp-do-not-use
+          fetch-depth: 0
+      - name: Reconstruct verified local tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .publish/chunk-*.txt | base64 --decode > /tmp/planet-killer-head.tar.gz
+          echo '728b37291689a4094af0e09b4c25c88e596d3ace98ac559d6e367e05410245c5  /tmp/planet-killer-head.tar.gz' | sha256sum -c -
+          mkdir /tmp/planet-killer-tree
+          tar -xzf /tmp/planet-killer-head.tar.gz -C /tmp/planet-killer-tree
+      - name: Publish as fast-forward child of origin/main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch -C publish-main origin/main
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/planet-killer-tree/. .
+          git add -A
+          git config user.name 'westkitty'
+          git config user.email 'andrew.dolby@westcat.ca'
+          git commit -m 'Publish Planet Killer visual enhancement build'
+          git push origin HEAD:main
+      - name: Remove temporary publication branch
+        if: success()
+        shell: bash
+        run: git push origin --delete tmp-do-not-use || true
