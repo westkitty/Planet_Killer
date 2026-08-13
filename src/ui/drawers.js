@@ -36,7 +36,7 @@ export function renderDrawer(name, context) {
     ${metric('Energy', `${sci(result.impactor.energyJ)} J`)}${metric('TNT equivalent', `${sci(result.impactor.energyMegatonsTNT)} Mt`)}${metric('Final crater', `${n(result.crater.finalDiameterKm,1)} km`)}${metric('Severe thermal reach', `${n(result.regional.thermalSevereKm,0)} km`)}${metric('Light reduction', `${n(result.climate.lightReductionFraction*100,0)}%`)}${metric('Temperature envelope', `${n(result.climate.temperatureAnomalyC,1)} °C`)}${metric('Ecological category', result.ecology.category)}
     <p class="warning">${target.uncertaintyNote} ${result.ecology.precisionNote}</p>
     <h3>Location probes (${probes.length}/4)</h3>
-    ${probes.length ? probes.map((p,i)=>`<div class="metric"><strong>Probe ${i+1}</strong><span>${n(p.longitude,1)}°, ${n(p.latitude,1)}°</span></div>`).join('') : '<p class="quiet">No probes yet.</p>'}
+    ${probes.length ? probes.map((p,i)=>probeCard(p,i)).join('') : '<p class="quiet">No probes yet.</p>'}
     <div class="button-grid"><button data-probe-add ${probes.length>=4?'disabled':''}>Add probe on Earth</button><button data-probe-clear ${!probes.length?'disabled':''}>Clear probes</button></div>`;
 
   if (name === 'settings') return `${close('Settings + handoff')}
@@ -52,3 +52,8 @@ function range(label, path, value, min, max, step, display) {
   return `<div class="field"><label for="${id}">${label}</label><output>${display}</output><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${value}" data-field="${path}"></div>`;
 }
 function metric(label, value) { return `<div class="metric"><strong>${label}</strong><span>${value}</span></div>`; }
+function arrival(seconds) { if (seconds == null) return 'n/a'; if (seconds < 120) return `${n(seconds,0)} s`; if (seconds < 7200) return `${n(seconds/60,1)} min`; return `${n(seconds/3600,1)} h`; }
+function probeCard(probe, index) {
+  const r=probe.result; if(!r) return `<div class="metric"><strong>Probe ${index+1}</strong><span>${n(probe.longitude,1)}°, ${n(probe.latitude,1)}°</span></div>`;
+  return `<div class="probe-card"><div class="metric"><strong>Probe ${index+1}</strong><span>${n(probe.longitude,1)}°, ${n(probe.latitude,1)}° · ${n(r.distanceKm,0)} km</span></div><p class="quiet">Thermal ${arrival(r.arrivals.thermalSeconds)} · seismic ${arrival(r.arrivals.seismicSeconds)} · blast ${arrival(r.arrivals.blastSeconds)} · ejecta ${arrival(r.arrivals.ejectaSeconds)} · tsunami ${arrival(r.arrivals.tsunamiSeconds)}. Blast ${r.severity.blast}; thermal ${r.severity.thermal}; seismic ${r.severity.seismic}.</p></div>`;
+}
