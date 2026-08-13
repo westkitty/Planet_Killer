@@ -7,12 +7,12 @@
   "project_name": "PLANET KILLER",
   "project_root": "/mnt/data/Planet_Killer",
   "artifact_path": "/mnt/data/Planet_Killer",
-  "state_revision": 10,
-  "last_updated": "2026-08-13T07:32:43Z",
+  "state_revision": 11,
+  "last_updated": "2026-08-13T07:43:39Z",
   "current_baseline": {
-    "identity": "reconstructed source durable on GitHub tmp-do-not-use; main publication pending",
+    "identity": "main commit 369628a6c407fdf6e5ee156a79babcd51e38f50d / tree df201ce5bf6ad9e547be6742ca2d8cb04d26b30c",
     "state": "partially-verified",
-    "last_verified": "2026-08-13T07:32:43Z"
+    "last_verified": "2026-08-13T07:43:39Z"
   },
   "scope_boundaries": ["Planet Killer source, tests, docs, bundled data provenance, build, and repository publication"],
   "linked_parent_state": null
@@ -30,11 +30,11 @@
 ## 2. Current Baseline
 
 - State: `partially-verified`.
-- Reconstructed source/test/docs/provenance are durable on `tmp-do-not-use`; key files were individually read back with exact Git blob SHAs.
+- Published `main` is commit `369628a6c407fdf6e5ee156a79babcd51e38f50d` with tree `df201ce5bf6ad9e547be6742ca2d8cb04d26b30c`, a fast-forward child of bootstrap `4390eb0db4f8a016f84493c637575884d4ea6da0`.
 - Verified local gates: 41/41 tests; 22-module project check; 31-file self-contained build; web-authorship PASS; HTTP 200 for root, stylesheet, main module, and renderer module.
 - Implemented but unverified here: rendered WebGL2 appearance; pointer/touch feel; camera/Auto Director runtime behavior; browser download/clipboard paths; screen-reader traversal; representative-device FPS/thermal/memory.
 - Scientific limitation: 66 Ma geography/depth remain explicit proxies.
-- Delivery limitation: `main` publication/read-back remains pending.
+- Delivery state: clean `main` publication and remote read-back are verified. Temporary publication files are absent from `main`.
 
 ## 3. Artifact Contract
 
@@ -46,7 +46,7 @@ Dependency-free WebGL2 catastrophe-first simulation with deterministic seekable 
 - **INV-002 — Deterministic time + user camera ownership:** partially verified. Timeline determinism is test-verified; camera override is source/static-verified but not browser-runtime-verified.
 - **INV-003 — Science/provenance boundaries:** verified by regression tests and aligned science/provenance documents.
 - **INV-004 — Distinct epochs:** partially verified. Modern GSHHG/ETOPO derivatives are packaged/tested; 66 Ma remains a coarse proxy with no numerical paleobathymetry.
-- **INV-005 — Publication:** pending. `main` must be updated without force and read back before completion.
+- **INV-005 — Publication:** verified. `main` was published as a non-force fast-forward child and read back; temporary publication machinery is absent.
 
 ## 5. Verified Working Behavior
 
@@ -54,6 +54,7 @@ Dependency-free WebGL2 catastrophe-first simulation with deterministic seekable 
 - **VER-002:** project check passes for 22 JS modules with no runtime hotlinks or production-workflow residue.
 - **VER-003:** production build succeeds with 31 files including bounded data notices/licenses; authorship audit passes; key served paths return HTTP 200.
 - **VER-004:** reconstructed source, tests, docs, and provenance are durable on `tmp-do-not-use` with exact SHA read-backs for key files.
+- **VER-005:** clean `main` publication is verified at commit `369628a6c407fdf6e5ee156a79babcd51e38f50d` / tree `df201ce5bf6ad9e547be6742ca2d8cb04d26b30c`; representative source/test blobs match staging and publication debris is absent.
 
 ## 6. Known Not Working
 
@@ -73,7 +74,7 @@ Dependency-free WebGL2 catastrophe-first simulation with deterministic seekable 
 
 ## 9. Pending Work
 
-- **PND-001 (blocking):** validate the complete staging tree in GitHub Actions, publish a clean fast-forward child to `main` without force, then read back the `main` commit/tree and representative file SHAs.
+- No blocking publication work remains. GPU-rendered browser QA, representative-device performance, and higher-fidelity 66 Ma reconstruction remain declared non-blocking limitations.
 
 ## 10. Active Decisions, Defaults, and Prohibitions
 
@@ -93,21 +94,23 @@ Dependency-free WebGL2 catastrophe-first simulation with deterministic seekable 
 | INV-002 | Deterministic time + camera ownership | partially-verified | time tests + controller source contracts | timeline/camera change |
 | INV-003 | Science/provenance boundaries | verified | tests + docs + provenance | science/model change |
 | INV-004 | Distinct epochs | partially-verified | modern derivative tests + explicit 66 Ma proxy | epoch change |
-| INV-005 | Non-force publication/read-back | pending | staging durable; main proof pending | publication |
+| INV-005 | Non-force publication/read-back | verified | main `369628a6...`, tree `df201ce5...`, clean root read-back | main/ref change |
 | VER-001 | Automated suite | verified | 41/41 | source/test change |
 | VER-002 | Project check | verified | 22 modules | source/build change |
 | VER-003 | Build/package | verified | 31 files; authorship PASS; HTTP 200 | package change |
 | VER-004 | Durable staging source | verified | exact GitHub SHA read-backs | staging ref change |
+| VER-005 | Clean main publication | verified | fast-forward commit/tree + source/test/absence read-back | main/ref change |
 | UNV-001 | Rendered browser experience | implemented-unverified | source/static evidence only | working WebGL2 browser |
-| PND-001 | Publish/read-back main | pending | not executed | publication |
+| PND-001 | Publish/read-back main | verified | completed by `369628a6...`; no publication debris on main | main/ref change |
 
 ## 12. Current Change Scope and Impact Radius
 
-- Finish durable reconstruction, run final GitHub-hosted validation, publish a clean source tree to `main`, and prove remote state.
+- Publication is complete. Future changes must preserve the verified `main` source baseline unless the user requests new implementation work.
 - Protect numerical regression behavior, deterministic time, modern/66 Ma distinction, provenance package, user-camera priority, transient UI, accessibility paths, and no-runtime-dependency constraint.
-- Mandatory final checks: GitHub-hosted 41-test suite, project check, production build, then `main` recursive-tree and representative-file read-back.
+- Completed publication evidence: GitHub-hosted 41-test suite, project check, production build, fast-forward commit, recursive-tree inspection, exact representative-file SHA read-back, and explicit absence of temporary publication paths.
 
 ## 13. Compact Revision Log
 
 - Revision 9: source reconstructed after failed archive publication; local validation passed, durable publication remained incomplete.
 - Revision 10: evidence reconciled conservatively after direct-file reconstruction to `tmp-do-not-use`; current 41-test / 22-module / 31-file baseline recorded; staging durability verified; GPU/browser interaction remains unverified; non-force `main` publication/read-back remains blocking.
+- Revision 11: GitHub-hosted validation passed; clean source published to `main` as fast-forward commit `369628a6c407fdf6e5ee156a79babcd51e38f50d`; tree/read-back and temporary-path absence verified. GPU-rendered browser QA and 66 Ma proxy limitations remain explicit.
