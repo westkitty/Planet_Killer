@@ -17,15 +17,16 @@ uniform sampler2D uSurface;
 uniform sampler2D uTsunami;
 uniform vec3 uTarget;
 uniform vec3 uSun;
+uniform vec3 uCamera;
 uniform float uCrater;
 uniform float uFlash;
 uniform float uDarkness;
 uniform float uTsunamiMix;
 out vec4 outColor;
 void main(){
- vec4 tex=texture(uSurface,vUv);vec3 n=normalize(vNormal);vec3 l=normalize(uSun);float ndl=max(dot(n,l),0.0);
- float limb=pow(1.0-max(dot(n,normalize(-vWorld)),0.0),2.2);float ocean=tex.a;
- vec3 base=tex.rgb*(0.17+0.88*ndl);float spec=pow(max(dot(reflect(-l,n),normalize(-vWorld)),0.0),56.0)*ocean*0.7;base+=vec3(0.55,0.72,0.82)*spec;
+ vec4 tex=texture(uSurface,vUv);vec3 n=normalize(vNormal);vec3 l=normalize(uSun);vec3 viewDir=normalize(uCamera-vWorld);float ndl=max(dot(n,l),0.0);
+ float limb=pow(1.0-max(dot(n,viewDir),0.0),2.2);float ocean=tex.a;
+ vec3 base=tex.rgb*(0.17+0.88*ndl);float spec=pow(max(dot(reflect(-l,n),viewDir),0.0),56.0)*ocean*0.7;base+=vec3(0.55,0.72,0.82)*spec;
  float d=acos(clamp(dot(normalize(vWorld),normalize(uTarget)),-1.0,1.0));float crater=1.0-smoothstep(0.015,0.075+uCrater*0.06,d);float rim=smoothstep(0.025,0.055,d)*(1.0-smoothstep(0.055,0.095,d))*uCrater;
  base=mix(base,vec3(0.025,0.018,0.012),crater*uCrater);base+=vec3(1.0,0.27,0.035)*rim*1.8;
  vec4 wave=texture(uTsunami,vUv);base+=vec3(0.18,0.58,0.92)*wave.r*wave.g*uTsunamiMix*ocean;
@@ -42,8 +43,8 @@ void main(){vec4 w=uModel*vec4(aPosition,1.0);vWorld=w.xyz;vNormal=mat3(uModel)*
 
 export const ATMOSPHERE_FS = `#version 300 es
 precision highp float;
-in vec3 vWorld;in vec3 vNormal;uniform float uDarkness;uniform float uFlash;out vec4 outColor;
-void main(){vec3 n=normalize(vNormal);vec3 viewDir=normalize(-vWorld);float f=pow(1.0-abs(dot(n,viewDir)),2.8);vec3 c=mix(vec3(0.10,0.34,0.72),vec3(0.54,0.77,1.0),f);c*=1.0-uDarkness*0.6;c+=uFlash*vec3(1.0,0.65,0.25);outColor=vec4(c,f*0.52);}`;
+in vec3 vWorld;in vec3 vNormal;uniform vec3 uCamera;uniform float uDarkness;uniform float uFlash;out vec4 outColor;
+void main(){vec3 n=normalize(vNormal);vec3 viewDir=normalize(uCamera-vWorld);float f=pow(1.0-abs(dot(n,viewDir)),2.8);vec3 c=mix(vec3(0.10,0.34,0.72),vec3(0.54,0.77,1.0),f);c*=1.0-uDarkness*0.6;c+=uFlash*vec3(1.0,0.65,0.25);outColor=vec4(c,f*0.52);}`;
 
 export const POINT_VS = `#version 300 es
 precision highp float;
