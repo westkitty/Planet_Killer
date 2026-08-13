@@ -13,41 +13,37 @@ jobs:
         with:
           ref: tmp-do-not-use
           fetch-depth: 0
-      - name: Reconstruct checksum-locked source tree
+
+      - name: Validate staging source
         shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          names = [
-              'rebuild-00.hex', 'rebuild-01.hex', 'rebuild-02.hex',
-              'rebuild-03a.hex', 'rebuild-03b.hex',
-              'rebuild-04a.hex', 'rebuild-04b.hex',
-              'rebuild-05a.hex', 'rebuild-05b.hex',
-              'rebuild-06a.hex', 'rebuild-06b.hex',
-              'rebuild-07a.hex', 'rebuild-07b.hex',
-              'rebuild-08a.hex', 'rebuild-08b.hex',
-              'rebuild-09a.hex', 'rebuild-09b.hex',
-          ]
-          parts = [Path('.publish') / name for name in names]
-          missing = [str(p) for p in parts if not p.is_file()]
-          if missing:
-              raise SystemExit('missing publication pieces: ' + ', '.join(missing))
-          payload = ''.join(p.read_text().strip() for p in parts)
-          Path('/tmp/planet-killer-rebuild.tar.gz').write_bytes(bytes.fromhex(payload))
-          PY
-          echo '3cf8660a0b17dc16ef003ba4813b30a108cf0bd822b2eedc5e6b39bd42cf466f  /tmp/planet-killer-rebuild.tar.gz' | sha256sum -c -
-          rm -rf /tmp/planet-killer-tree
-          mkdir -p /tmp/planet-killer-tree
-          tar -xzf /tmp/planet-killer-rebuild.tar.gz -C /tmp/planet-killer-tree
-      - name: Validate reconstructed tree
-        shell: bash
-        working-directory: /tmp/planet-killer-tree
         run: |
           set -euo pipefail
           node --test tests/*.test.mjs
           node scripts/check-project.mjs
           node scripts/build.mjs
+
+      - name: Prepare clean publication tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/planet-killer-clean
+          mkdir -p /tmp/planet-killer-clean
+          rsync -a ./ /tmp/planet-killer-clean/ \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.publish/' \
+            --exclude='.publish-ready' \
+            --exclude='.bootstrap' \
+            --exclude='dist/'
+          test -f /tmp/planet-killer-clean/src/main.js
+          test -f /tmp/planet-killer-clean/src/render/webgl/Renderer.js
+          test -f /tmp/planet-killer-clean/tests/ui-render.test.mjs
+          test -f /tmp/planet-killer-clean/OPERATIONAL_STATE.md
+          test ! -e /tmp/planet-killer-clean/.publish
+          test ! -e /tmp/planet-killer-clean/.publish-ready
+          test ! -e /tmp/planet-killer-clean/.bootstrap
+          test ! -e /tmp/planet-killer-clean/.github
+
       - name: Publish as fast-forward child of origin/main
         shell: bash
         run: |
@@ -55,13 +51,10 @@ jobs:
           git fetch origin main
           git switch -C publish-main origin/main
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a /tmp/planet-killer-tree/. .
+          cp -a /tmp/planet-killer-clean/. .
           git add -A
+          git diff --cached --check
           git config user.name 'westkitty'
           git config user.email 'andrew.dolby@westcat.ca'
           git commit -m 'Reconstruct and publish Planet Killer source tree'
           git push origin HEAD:main
-      - name: Remove temporary publication branch
-        if: success()
-        shell: bash
-        run: git push origin --delete tmp-do-not-use || true
