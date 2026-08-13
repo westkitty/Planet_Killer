@@ -1,0 +1,10 @@
+{
+  "runtime_dependencies": [],
+  "browser_runtime": "native WebGL2 + semantic DOM",
+  "external_runtime_hotlinks": [],
+  "third_party_code_bundled": false,
+  "third_party_data_derivatives": [
+    "src/data/epochs/modernLandMask.js",
+    "src/data/epochs/modernRelief.js"
+  ]
+}

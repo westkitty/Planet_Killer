@@ -1,2 +1,11 @@
-import {cp,mkdir,rm,readFile} from 'node:fs/promises';import {resolve} from 'node:path';
-const root=resolve('.'),dist=resolve('dist');await rm(dist,{recursive:true,force:true});await mkdir(dist,{recursive:true});for(const path of ['index.html','styles.css','src'])await cp(resolve(path),resolve(dist,path),{recursive:true});const html=await readFile('dist/index.html','utf8');if(/<script[^>]+src=["']https?:/i.test(html)||/<link[^>]+href=["']https?:/i.test(html))throw new Error('Runtime hotlink detected in built HTML');console.log('Built dist/ with project-owned runtime files only.');
+import {cp,mkdir,rm,readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+const dist=resolve('dist');
+await rm(dist,{recursive:true,force:true});
+await mkdir(dist,{recursive:true});
+for(const path of ['index.html','styles.css','src','THIRD_PARTY_NOTICES.md']) await cp(resolve(path),resolve(dist,path),{recursive:true});
+await mkdir(resolve(dist,'docs'),{recursive:true});
+await cp(resolve('docs/resources'),resolve(dist,'docs/resources'),{recursive:true});
+const html=await readFile(resolve(dist,'index.html'),'utf8');
+if(/<script[^>]+src=["']https?:/i.test(html)||/<link[^>]+href=["']https?:/i.test(html)) throw new Error('Runtime hotlink detected in built HTML');
+console.log('Built dist/ with project-owned runtime plus bundled data notices/licenses.');

@@ -41,6 +41,9 @@
       <button data-time-action="forward" aria-label="Step forward">▶</button>
       <input id="time-slider" type="range" min="0" max="1000" step="1" value="0" aria-label="Simulation timeline" />
       <output id="time-output" for="time-slider">−30 s</output>
+      <select id="chapter-select" aria-label="Jump to event phase">
+        <option value="approach">Approach</option><option value="entry">Entry</option><option value="contact">Contact</option><option value="excavation">Excavation</option><option value="regional">Regional</option><option value="tsunami">Tsunami</option><option value="encirclement">Encirclement</option><option value="winter">Impact winter</option><option value="recovery">Recovery</option>
+      </select>
       <select id="speed-select" aria-label="Playback speed">
         <option value="0.25">¼×</option><option value="1" selected>1×</option><option value="4">4×</option><option value="16">16×</option>
       </select>

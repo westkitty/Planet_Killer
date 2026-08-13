@@ -1,23 +1,25 @@
 # Planet Killer
 
-Planet Killer is a browser-based counterfactual K–Pg impact simulation. The primary surface is the catastrophe itself: a full-screen interactive Earth with transient controls that disappear during playback.
+Planet Killer is a browser-based counterfactual K–Pg impact simulation. The primary surface is the catastrophe itself: a full-screen interactive Earth with transient controls that recede during playback.
 
 ## What is implemented
 
-- Native WebGL2 globe renderer with inertial procedural star field, solar lighting, atmosphere, target picking and unrestricted orbit/zoom.
-- Two distinct epoch representations: a present-day low-resolution coastline proxy and a separate ~66 Ma paleogeographic proxy.
-- Stony, metallic, carbonaceous, rubble-pile, cometary and historical-reference impactor presets.
-- SI-unit mass and kinetic-energy calculations plus explicitly labeled reduced-order crater, regional-hazard and climate-response models.
-- Deterministic, seekable seconds-to-decades timeline. Rewind reconstructs state from scenario + time instead of reversing prior animation frames.
-- Distinct entry wake, ejecta, plume, pressure-front, seismic, thermal, tsunami and atmospheric-dust visual systems.
-- Bathymetry-proxy tsunami travel-time worker with depth-dependent wave speed and land blocking.
-- Hold-`B` historical comparison at synchronized simulation time.
-- Keyboard-operable transient UI, Clean View, reduced-motion mode, scenario JSON import/export and shareable URL state.
-- Historical Chicxulub regression fixture and deterministic scientific unit tests.
+- Native WebGL2 globe renderer with a deterministic inertial star field, restrained Milky Way band, solar cue, atmosphere, target picking, orbit, and zoom.
+- Two distinct epoch representations: present-day GSHHG-derived land/sea classification with 32×16 ETOPO1-derived visual relief, plus a separate coarse ~66 Ma paleogeographic proxy.
+- Editable impactor diameter, density, velocity, angle, azimuth, and composition with a Historical Chicxulub default.
+- SI-unit mass and kinetic-energy calculations plus explicitly labeled reduced-order crater, regional-effects, atmospheric-loading, climate, and ecological-stress models.
+- Deterministic, seekable seconds-to-years timeline. Rewind reconstructs visual state from scenario + modeled time rather than reversing prior animation frames.
+- Distinct impactor approach/entry heating, target reticle, crater/rim response, ejecta, plume, vapor, dust, atmosphere, and tsunami-field visual systems.
+- Location-sensitive tsunami worker with depth-sensitive shallow-water travel speed, longitude wrap, and land blocking.
+- Hold-`B` synchronized visual comparison against a selected preset, with target/energy/crater/light/ecology details.
+- User-owned camera with presets, three bookmarks, optional Auto Director, pointer/touch controls, and keyboard orbit/zoom.
+- Up to four location probes with reduced-order thermal, seismic, blast, ejecta, and tsunami arrival estimates where supported.
+- Clean View, reduced-motion mode, keyboard time/speed controls, scenario JSON import/export, shareable URL state, and PNG capture with a JSON metadata sidecar.
+- Dependency-free browser runtime and deterministic automated regression tests.
 
-## Important scientific limits
+## Scientific limits
 
-This is a reduced-order educational simulation, not a hydrocode, computational-fluid-dynamics solver, or general circulation model. The current 66 Ma globe is a coarse project-owned proxy informed by published paleogeography; it is **not** yet a transformed EarthByte/GPlates 66 Ma dataset. The tsunami solver uses categorical shelf/deep-ocean depth proxies rather than a published 66 Ma bathymetric grid. Those limitations are visible in Science and documented in `docs/MODEL_LIMITATIONS.md`.
+This is a reduced-order educational simulation, not a hydrocode, computational-fluid-dynamics solver, general circulation model, or local hazard-prediction tool. Present-day land/sea and visual relief use documented compact GSHHG 2.3.6 / ETOPO1 derivatives. The 66 Ma globe remains a coarse project-owned proxy informed by published paleogeography; it is **not** a transformed EarthByte/GPlates dataset. Tsunami depth is a proxy rather than numerical modern or 66 Ma bathymetry. See `docs/MODEL_LIMITATIONS.md`, `docs/SCIENCE.md`, and `docs/SOURCES.md`.
 
 ## Run
 
@@ -37,46 +39,36 @@ npm run check
 npm run build
 ```
 
-`npm run build` creates a static `dist/` directory with no runtime CDN imports.
+`npm run build` creates a self-contained static `dist/` directory and bundles the retained third-party data notices/license texts used by the compact modern-Earth derivatives.
 
 ## Controls
 
 - Drag: orbit Earth
 - Wheel/pinch: zoom
-- Click/tap Earth: move impact target
+- Click/tap Earth: move impact target; Science can switch the next click to probe placement
 - Space: play/pause
-- Left/Right: seek backward/forward
-- Shift + Left/Right: larger seek
-- Hold `B`: historical Chicxulub comparison
+- Left/Right: small time step
+- Shift + Left/Right: chapter jump
+- Comma/period: playback speed down/up
+- `I` / `J` / `K` / `L`: keyboard camera orbit
+- `+` / `-`: keyboard zoom
+- `0`–`4`: camera presets
+- Hold `B`: synchronized comparison
 - `C`: Clean View
-- `H`: reveal controls / leave Clean View
-- Escape: close a drawer / leave Clean View
-
-## QA capture URLs
-
-Deterministic states can be opened directly for capture:
-
-```text
-/?capture=1&clean=1&time=-12
-/?capture=1&clean=1&time=0.7
-/?capture=1&clean=1&time=600
-/?capture=1&clean=1&time=86400
-/?capture=1&clean=1&time=31557600
-/?capture=1&drawer=science&time=600
-```
-
-See `docs/VISUAL_QA.md` for the capture matrix.
+- `T`: reveal controls
+- `D`: toggle Auto Director
+- Escape: close the active drawer or leave Clean View
 
 ## Repository map
 
 ```text
-src/simulation/core/       numerical model, units, target model, tsunami surrogate
-src/simulation/timeline/   deterministic multi-scale time mapping and effect state
-src/data/epochs/           epoch-specific coastline/target proxies
-src/data/science/          source registry used by the Science drawer
-src/render/webgl/          project-owned WebGL2 renderer and geometry/math
-src/workers/               background tsunami field calculation
-src/ui/                    drawers and formatting
-tests/                     numerical, regression, timeline and tsunami tests
-docs/                      model, sources, schema, benchmark and QA documentation
+src/simulation/            numerical model, scenario, target, timeline, tsunami, probes
+src/data/epochs/           modern compact derivatives and separate 66 Ma proxy
+src/render/webgl/          project-owned WebGL2 renderer, shaders, geometry, math, textures
+src/workers/               background tsunami calculation
+src/ui/                    transient drawers and scenario/capture handoff helpers
+tests/                     numerical and browser/render regression tests
+docs/                      science, sources, limitations, validation, QA, provenance
 ```
+
+Current automated validation status is recorded in `docs/VALIDATION.md`; requirement-by-requirement evidence is in `docs/REQUIREMENT_TRACEABILITY.md`.
