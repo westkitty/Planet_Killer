@@ -125,7 +125,7 @@ function releaseDirector() {
 function renderActiveDrawer() {
   if (!activeDrawer) { drawer.hidden = true; drawer.innerHTML = ''; return; }
   drawer.hidden = false;
-  drawer.innerHTML = renderDrawer(activeDrawer, { scenario, evaluation, probes: probeResults, compareKey, autoDirector, reducedMotion });
+  drawer.innerHTML = renderDrawer(activeDrawer, { scenario, evaluation, compareEvaluation, probes: probeResults, compareKey, autoDirector, reducedMotion });
 }
 
 function openDrawer(name) { activeDrawer = name; renderActiveDrawer(); showChrome(); }
@@ -138,7 +138,7 @@ function showChrome() {
 }
 function scheduleChromeHide() {
   clearTimeout(chromeTimer);
-  chromeTimer = setTimeout(() => { if (playing && !activeDrawer && !onboarding.hidden && false) return; if (playing && !activeDrawer) { edgeControls.classList.add('hidden-chrome'); timeline.classList.remove('revealed'); } }, 1200);
+  chromeTimer = setTimeout(() => { if (playing && !activeDrawer) { edgeControls.classList.add('hidden-chrome'); timeline.classList.remove('revealed'); } }, 1200);
 }
 function setCleanView(value) { cleanView = Boolean(value); document.body.classList.toggle('clean-view', cleanView); if (!cleanView) showChrome(); }
 function setReducedMotion(value) { reducedMotion = Boolean(value); document.body.classList.toggle('reduced-motion', reducedMotion); renderActiveDrawer(); }
@@ -187,6 +187,18 @@ function chapterStep(direction) {
   const current = chapterAtTime(scenario.timelineTime), index = CHAPTERS.findIndex(c => c.id === current.id);
   const next = CHAPTERS[Math.max(0, Math.min(CHAPTERS.length - 1, index + direction))];
   setModelTime(next.time);
+}
+
+function smallTimeStep(direction) {
+  const next = Math.max(0, Math.min(1000, Number(slider.value) + direction * 15));
+  playing = false; setModelTime(sliderToTime(next));
+}
+
+function adjustSpeed(direction) {
+  const speeds = [0.25, 1, 4, 16];
+  const current = speeds.indexOf(playbackSpeed);
+  const next = speeds[Math.max(0, Math.min(speeds.length - 1, (current < 0 ? 1 : current) + direction))];
+  playbackSpeed = next; speedSelect.value = String(next); notify(`Playback ${next}×`);
 }
 
 function launch() { setModelTime(-30); playing = true; syncTimeline(); scheduleChromeHide(); }
@@ -284,8 +296,16 @@ window.addEventListener('mousemove', showChrome, { passive:true });
 window.addEventListener('keydown', event => {
   if (isTyping(event)) return;
   if (event.code === 'Space') { event.preventDefault(); playing = !playing; syncTimeline(); }
-  if (event.key === 'ArrowLeft') chapterStep(-1);
-  if (event.key === 'ArrowRight') chapterStep(1);
+  if (event.key === 'ArrowLeft') { event.preventDefault(); event.shiftKey ? chapterStep(-1) : smallTimeStep(-1); }
+  if (event.key === 'ArrowRight') { event.preventDefault(); event.shiftKey ? chapterStep(1) : smallTimeStep(1); }
+  if (event.key === ',') adjustSpeed(-1);
+  if (event.key === '.') adjustSpeed(1);
+  if (event.key.toLowerCase() === 'j') { releaseDirector(); renderer.orbitBy(-18,0); }
+  if (event.key.toLowerCase() === 'l') { releaseDirector(); renderer.orbitBy(18,0); }
+  if (event.key.toLowerCase() === 'i') { releaseDirector(); renderer.orbitBy(0,-18); }
+  if (event.key.toLowerCase() === 'k') { releaseDirector(); renderer.orbitBy(0,18); }
+  if (event.key === '+' || event.key === '=') { releaseDirector(); renderer.dollyBy(-180); }
+  if (event.key === '-' || event.key === '_') { releaseDirector(); renderer.dollyBy(180); }
   if (event.key.toLowerCase() === 'b' && !event.repeat) holdComparison(true);
   if (event.key.toLowerCase() === 'c') setCleanView(!cleanView);
   if (event.key.toLowerCase() === 't') showChrome();
