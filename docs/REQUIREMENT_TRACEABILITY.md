@@ -27,14 +27,14 @@ Status vocabulary: **PASS** = implemented and supported by executed evidence; **
 | RQ-21 | Responsive mobile core flow | UNVERIFIED | mobile CSS + Pointer Events/pinch path | No mobile browser run |
 | RQ-22 | Bounded performance architecture | PARTIAL | one render loop, worker tsunami solve, DPR cap, explicit per-effect budgets | FPS/memory/thermal/context-loss evidence absent |
 | RQ-23 | No paid API/login/runtime hotlink | PASS | project integrity check and self-contained build | None |
-| RQ-24 | Source/provenance notices and licenses | PASS | Root and `docs/resources/` notices, derivative hash manifest, retained LGPL text, retained MIT text; GitHub blob SHAs verified | Bounded data-license package is durable on `tmp-do-not-use` |
+| RQ-24 | Source/provenance notices and licenses | PASS | Root and `docs/resources/` notices, derivative hash manifest, retained LGPL text, retained MIT text; published `main` tree read-back verified | None |
 | RQ-25 | Automated scientific/browser tests | PASS | **41/41** executed tests | Broader reference-case coverage can expand |
 | RQ-26 | Browser interaction validation | PARTIAL | static interface/render contracts + served module resolution | Real WebGL browser interaction unavailable here |
 | RQ-27 | Visual QA capture states | UNVERIFIED | `VISUAL_QA.md`; deterministic capture implementation | Current rendered screenshots not produced here |
 | RQ-28 | Production build | PASS | check/build/authorship/HTTP gates all pass | None for static package |
-| RQ-29 | Non-force remote `main` publication and read-back | PENDING | complete source/test tree is being reconstructed durably on `tmp-do-not-use` | Publish validated clean tree to `main`, then read it back |
+| RQ-29 | Non-force remote `main` publication and read-back | PASS | GitHub Actions validated staging and published fast-forward source commit `369628a6c407fdf6e5ee156a79babcd51e38f50d` / tree `df201ce5bf6ad9e547be6742ca2d8cb04d26b30c`; root/tests/critical source blobs read back and publication debris absent | None |
 | RQ-30 | Probes, chapter navigation, clean capture, exploration layer | PARTIAL | up to 4 probes with arrival/severity details; chapters; camera modes; capture sidecar | Browser interaction/download proof pending |
 
 ## Current delivery verdict
 
-The reconstructed implementation passes the available numerical, static, build, authorship, and served-file gates. Publication is not complete until remote `main` is fast-forwarded and read back. GPU-rendered visual QA and a real 66 Ma reconstruction/paleobathymetry remain explicitly declared limitations rather than silently substituted claims.
+The reconstructed implementation passes the available numerical, static, build, authorship, served-file, and remote-publication gates. Clean `main` publication and read-back are verified. GPU-rendered visual QA and a real 66 Ma reconstruction/paleobathymetry remain explicitly declared limitations rather than silently substituted claims.
