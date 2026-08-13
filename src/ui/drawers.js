@@ -30,7 +30,7 @@ export function renderDrawer(name, context) {
     <p>Hold <strong>B</strong> at any modeled time to see the comparison scenario at that same time. Release B to return to A.</p>
     <div class="button-grid"><button data-compare="historical" ${compareKey==='historical'?'aria-current="true"':''}>Historical</button><button data-compare="deepOcean" ${compareKey==='deepOcean'?'aria-current="true"':''}>Deep ocean</button><button data-compare="crystalline" ${compareKey==='crystalline'?'aria-current="true"':''}>Crystalline land</button><button data-compare="carbonateShelf" ${compareKey==='carbonateShelf'?'aria-current="true"':''}>Carbonate shelf</button></div>
     ${compareEvaluation ? comparisonDetails(evaluation, compareEvaluation) : ''}
-    <p class="quiet">Comparison is visual-first and time-synchronized; these details identify what stayed similar and what changed.</p>`;
+    <p class="quiet">Comparison is visual-first and time-synchronized; these details separate invariant quantities from target-dependent outcomes.</p>`;
 
   if (name === 'science') return `${close('Science + results')}
     <div><span class="badge">${target.dataQuality}</span><span class="badge">${result.crater.model}</span><span class="badge">${result.climate.uncertainty} climate uncertainty</span></div>
