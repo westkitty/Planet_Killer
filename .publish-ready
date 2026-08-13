@@ -1,5 +1,5 @@
 publish_mode=direct-source
 staging_ref=tmp-do-not-use
 expected_main_parent=4390eb0db4f8a016f84493c637575884d4ea6da0
-repair=index-chapter-select
-triggered_at=2026-08-13T07:38:00Z
+repair=trailing-whitespace
+triggered_at=2026-08-13T07:41:00Z
