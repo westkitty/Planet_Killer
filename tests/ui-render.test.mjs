@@ -38,5 +38,5 @@ test('HTML and CSS preserve semantic transient chrome and Clean View', async () 
 test('controller exposes required comparison camera probe accessibility and handoff paths', async () => {
   const main = await readFile('src/main.js','utf8'), drawers = await readFile('src/ui/drawers.js','utf8');
   for (const term of ['holdComparison','new Worker','setCleanView','releaseDirector','smallTimeStep','adjustSpeed','renderer.orbitBy','renderer.dollyBy','scenarioFromHash','captureFrame','srSummary.textContent']) assert.ok(main.includes(term), term);
-  for (const term of ['Hold <strong>B</strong>','what stayed similar and what changed','Thermal ${arrival','data-probe-add','data-auto-director','data-export','data-import','data-share']) assert.ok(drawers.includes(term), term);
+  for (const term of ['Hold <strong>B</strong>','A → B details','Thermal ${arrival','data-probe-add','data-auto-director','data-export','data-import','data-share']) assert.ok(drawers.includes(term), term);
 });
