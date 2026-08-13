@@ -13,15 +13,22 @@ jobs:
         with:
           ref: tmp-do-not-use
           fetch-depth: 0
-      - name: Reconstruct verified local tree
+      - name: Reconstruct checksum-locked source tree
         shell: bash
         run: |
           set -euo pipefail
-          cat .publish/final-*.txt | base64 --decode > /tmp/planet-killer-head.tar.gz
-          echo '2ea8cd6b97ad7625b603da633491906fa0bbde4f4ad48a03a804d2112a3529e5  /tmp/planet-killer-head.tar.gz' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          parts = sorted(Path('.publish').glob('rebuild-*.hex'))
+          if len(parts) != 10:
+              raise SystemExit(f'expected 10 rebuild chunks, found {len(parts)}')
+          payload = ''.join(p.read_text().strip() for p in parts)
+          Path('/tmp/planet-killer-rebuild.tar.gz').write_bytes(bytes.fromhex(payload))
+          PY
+          echo 'f75fbec1e250827fc8cdbaac5da7a568efde001ff251f7dc259ad70f1e3bf018  /tmp/planet-killer-rebuild.tar.gz' | sha256sum -c -
           rm -rf /tmp/planet-killer-tree
           mkdir -p /tmp/planet-killer-tree
-          tar -xzf /tmp/planet-killer-head.tar.gz -C /tmp/planet-killer-tree
+          tar -xzf /tmp/planet-killer-rebuild.tar.gz -C /tmp/planet-killer-tree
       - name: Validate reconstructed tree
         shell: bash
         working-directory: /tmp/planet-killer-tree
@@ -41,5 +48,9 @@ jobs:
           git add -A
           git config user.name 'westkitty'
           git config user.email 'andrew.dolby@westcat.ca'
-          git commit -m 'Publish Planet Killer visual enhancement build'
+          git commit -m 'Reconstruct and publish Planet Killer source tree'
           git push origin HEAD:main
+      - name: Remove temporary publication branch
+        if: success()
+        shell: bash
+        run: git push origin --delete tmp-do-not-use || true
