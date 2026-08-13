@@ -1,6 +1,6 @@
 # Scenario Schema
 
-Current schema version: **1**  
+Current schema version: **1**
 Current model version: **`planet-killer-0.4`**
 
 A normalized scenario has this shape:
