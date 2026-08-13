@@ -19,9 +19,20 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          parts = sorted(Path('.publish').glob('rebuild-*.hex'))
-          if len(parts) != 10:
-              raise SystemExit(f'expected 10 rebuild chunks, found {len(parts)}')
+          names = [
+              'rebuild-00.hex', 'rebuild-01.hex', 'rebuild-02.hex',
+              'rebuild-03a.hex', 'rebuild-03b.hex',
+              'rebuild-04a.hex', 'rebuild-04b.hex',
+              'rebuild-05a.hex', 'rebuild-05b.hex',
+              'rebuild-06a.hex', 'rebuild-06b.hex',
+              'rebuild-07a.hex', 'rebuild-07b.hex',
+              'rebuild-08a.hex', 'rebuild-08b.hex',
+              'rebuild-09a.hex', 'rebuild-09b.hex',
+          ]
+          parts = [Path('.publish') / name for name in names]
+          missing = [str(p) for p in parts if not p.is_file()]
+          if missing:
+              raise SystemExit('missing publication pieces: ' + ', '.join(missing))
           payload = ''.join(p.read_text().strip() for p in parts)
           Path('/tmp/planet-killer-rebuild.tar.gz').write_bytes(bytes.fromhex(payload))
           PY
