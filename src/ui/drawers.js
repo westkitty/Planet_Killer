@@ -3,7 +3,7 @@ function sci(value) { return Number(value || 0).toExponential(2); }
 function close(title) { return `<button class="close" data-close-drawer aria-label="Close ${title}">×</button><h2>${title}</h2>`; }
 
 export function renderDrawer(name, context) {
-  const { scenario, evaluation, probes = [], compareKey = 'historical', autoDirector = false, reducedMotion = false } = context;
+  const { scenario, evaluation, compareEvaluation = null, probes = [], compareKey = 'historical', autoDirector = false, reducedMotion = false } = context;
   const result = evaluation.result, target = evaluation.target;
   if (name === 'impactor') return `${close('Impactor + target')}
     <p class="quiet">Change the body or epoch, then click Earth to place the target. The same numerical state drives the timeline and rendering.</p>
@@ -29,7 +29,8 @@ export function renderDrawer(name, context) {
   if (name === 'compare') return `${close('Visual comparison')}
     <p>Hold <strong>B</strong> at any modeled time to see the comparison scenario at that same time. Release B to return to A.</p>
     <div class="button-grid"><button data-compare="historical" ${compareKey==='historical'?'aria-current="true"':''}>Historical</button><button data-compare="deepOcean" ${compareKey==='deepOcean'?'aria-current="true"':''}>Deep ocean</button><button data-compare="crystalline" ${compareKey==='crystalline'?'aria-current="true"':''}>Crystalline land</button><button data-compare="carbonateShelf" ${compareKey==='carbonateShelf'?'aria-current="true"':''}>Carbonate shelf</button></div>
-    <p class="quiet">Comparison is visual-first and time-synchronized; numerical details remain available in Science.</p>`;
+    ${compareEvaluation ? comparisonDetails(evaluation, compareEvaluation) : ''}
+    <p class="quiet">Comparison is visual-first and time-synchronized; these details identify what stayed similar and what changed.</p>`;
 
   if (name === 'science') return `${close('Science + results')}
     <div><span class="badge">${target.dataQuality}</span><span class="badge">${result.crater.model}</span><span class="badge">${result.climate.uncertainty} climate uncertainty</span></div>
@@ -57,3 +58,5 @@ function probeCard(probe, index) {
   const r=probe.result; if(!r) return `<div class="metric"><strong>Probe ${index+1}</strong><span>${n(probe.longitude,1)}°, ${n(probe.latitude,1)}°</span></div>`;
   return `<div class="probe-card"><div class="metric"><strong>Probe ${index+1}</strong><span>${n(probe.longitude,1)}°, ${n(probe.latitude,1)}° · ${n(r.distanceKm,0)} km</span></div><p class="quiet">Thermal ${arrival(r.arrivals.thermalSeconds)} · seismic ${arrival(r.arrivals.seismicSeconds)} · blast ${arrival(r.arrivals.blastSeconds)} · ejecta ${arrival(r.arrivals.ejectaSeconds)} · tsunami ${arrival(r.arrivals.tsunamiSeconds)}. Blast ${r.severity.blast}; thermal ${r.severity.thermal}; seismic ${r.severity.seismic}.</p></div>`;
 }
+
+function comparisonDetails(a,b) { return `<h3>A → B details</h3>${metric('Target class', `${a.target.className} → ${b.target.className}`)}${metric('Impactor energy', `${sci(a.result.impactor.energyJ)} → ${sci(b.result.impactor.energyJ)} J`)}${metric('Final crater', `${n(a.result.crater.finalDiameterKm,1)} → ${n(b.result.crater.finalDiameterKm,1)} km`)}${metric('Light reduction', `${n(a.result.climate.lightReductionFraction*100,0)} → ${n(b.result.climate.lightReductionFraction*100,0)}%`)}${metric('Ecological category', `${a.result.ecology.category} → ${b.result.ecology.category}`)}`; }
