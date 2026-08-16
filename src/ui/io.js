@@ -22,7 +22,13 @@ export function scenarioFromHash(hash) {
 export async function copyShareLink(json) {
   const url = new URL(location.href); url.hash = `scenario=${scenarioHash(json)}`;
   if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url.toString());
-  else { const input = document.createElement('textarea'); input.value = url.toString(); document.body.append(input); input.select(); document.execCommand('copy'); input.remove(); }
+  else {
+    const input = document.createElement('textarea'); input.value = url.toString(); document.body.append(input); input.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); }
+    finally { input.remove(); }
+    if (!copied) throw new Error('Clipboard copy failed');
+  }
   return url.toString();
 }
 

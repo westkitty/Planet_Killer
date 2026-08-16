@@ -13,10 +13,10 @@
     <canvas id="viewport" aria-label="Interactive three-dimensional Earth impact simulation"></canvas>
     <div id="fallback" class="fallback" hidden role="alert"></div>
 
-    <section id="onboarding" class="onboarding" aria-labelledby="onboarding-title">
+    <section id="onboarding" class="onboarding" role="dialog" aria-labelledby="onboarding-title" aria-describedby="onboarding-description">
       <p class="eyebrow">COUNTERFACTUAL K–PG SIMULATION</p>
       <h1 id="onboarding-title">Move the impact. Change the chain.</h1>
-      <p>Drag to orbit. Scroll or pinch to zoom. Click Earth to place the target. Launch, pause, rewind, and keep the camera.</p>
+      <p id="onboarding-description">Drag to orbit. Scroll or pinch to zoom. Click Earth to place the target. Launch, pause, rewind, and keep the camera.</p>
       <div class="onboarding-actions">
         <button id="dismiss-onboarding" class="primary">Enter simulation</button>
         <button id="open-science-intro" class="secondary">Model limits</button>
@@ -24,22 +24,27 @@
     </section>
 
     <nav id="edge-controls" class="edge-controls" aria-label="Simulation controls">
-      <button data-drawer="impactor" aria-label="Impactor and target controls" title="Impactor and target">☄</button>
+      <button data-drawer="impactor" aria-label="Impactor and target controls" aria-controls="drawer" aria-expanded="false" title="Impactor and target">☄</button>
       <button data-action="launch" aria-label="Launch impact" title="Launch">▶</button>
-      <button data-drawer="camera" aria-label="Camera controls" title="Camera">◉</button>
-      <button data-drawer="compare" aria-label="Compare scenarios" title="Compare">◫</button>
-      <button data-drawer="science" aria-label="Science and results" title="Science">≋</button>
-      <button data-drawer="settings" aria-label="Settings and help" title="Settings">⚙</button>
+      <button data-drawer="camera" aria-label="Camera controls" aria-controls="drawer" aria-expanded="false" title="Camera">◉</button>
+      <button data-drawer="compare" aria-label="Compare scenarios" aria-controls="drawer" aria-expanded="false" title="Compare">◫</button>
+      <button data-drawer="science" aria-label="Science and results" aria-controls="drawer" aria-expanded="false" title="Science">≋</button>
+      <button data-drawer="settings" aria-label="Settings and sharing" aria-controls="drawer" aria-expanded="false" title="Settings">⚙</button>
     </nav>
 
-    <aside id="drawer" class="drawer" hidden aria-live="polite"></aside>
+    <aside id="drawer" class="drawer" hidden role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="drawer-title" tabindex="-1"></aside>
+
+    <section id="interaction-status" class="interaction-status" hidden role="status" aria-live="polite">
+      <span id="interaction-status-text">Probe placement active — select a point on Earth.</span>
+      <button id="cancel-interaction" type="button">Cancel</button>
+    </section>
 
     <section id="timeline" class="timeline" aria-label="Simulation time controls">
       <button data-time-action="restart" aria-label="Restart timeline">↺</button>
       <button data-time-action="back" aria-label="Step backward">◀</button>
-      <button id="play-pause" data-time-action="play" aria-label="Play or pause">▶</button>
+      <button id="play-pause" data-time-action="play" aria-label="Play" aria-pressed="false" data-state="paused">▶</button>
       <button data-time-action="forward" aria-label="Step forward">▶</button>
-      <input id="time-slider" type="range" min="0" max="1000" step="1" value="0" aria-label="Simulation timeline" />
+      <input id="time-slider" type="range" min="0" max="1000" step="1" value="0" aria-label="Simulation timeline" aria-describedby="phase-output time-output" />
       <output id="time-output" for="time-slider">−30 s</output>
       <select id="chapter-select" aria-label="Jump to event phase">
         <option value="approach">Approach</option><option value="entry">Entry</option><option value="contact">Contact</option><option value="excavation">Excavation</option><option value="regional">Regional</option><option value="tsunami">Tsunami</option><option value="encirclement">Encirclement</option><option value="winter">Impact winter</option><option value="recovery">Recovery</option>
@@ -47,10 +52,11 @@
       <select id="speed-select" aria-label="Playback speed">
         <option value="0.25">¼×</option><option value="1" selected>1×</option><option value="4">4×</option><option value="16">16×</option>
       </select>
+      <output id="phase-output" class="phase-output" aria-live="off">Approach</output>
     </section>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <p id="sr-summary" class="sr-only" aria-live="polite"></p>
+    <p id="sr-summary" class="sr-only" aria-live="polite" aria-atomic="true"></p>
   </main>
   <script type="module" src="./src/main.js"></script>
 </body>
