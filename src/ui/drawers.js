@@ -38,7 +38,7 @@ export function renderDrawer(name, context) {
     <button data-preset="historical">Reset Historical Chicxulub</button>`;
 
   if (name === 'camera') return `${close('Camera')}
-    <p class="quiet">Camera changes never reset the scenario or modeled time. Direct drag/zoom immediately releases Auto Director.</p>
+    <p class="quiet">Every framing is composed around the impact target, so the site stays in shot wherever you place it. Camera changes never reset the scenario or modelled time, and dragging or zooming releases Auto Director at once.</p>
     <div class="button-grid"><button data-camera="globe">Globe</button><button data-camera="impact">Impact site</button><button data-camera="trajectory">Trajectory side</button><button data-camera="chase">Chase</button><button data-camera="space">Far space</button><button data-auto-director aria-pressed="${autoDirector}">${autoDirector?'Disable':'Enable'} Auto Director</button></div>
     <h3>Bookmarks</h3>
     <div class="button-grid">${[1,2,3].map(i=>bookmarkButtons(i, bookmarkSlots.includes(String(i)))).join('')}</div>
@@ -55,6 +55,7 @@ export function renderDrawer(name, context) {
     <div><span class="badge">${target.dataQuality}</span><span class="badge">${result.crater.model}</span><span class="badge">${result.climate.uncertainty} climate uncertainty</span><span class="badge async-status" data-state="${tsunamiStatus.state}">${tsunamiStatus.label}</span></div>
     ${metric('Energy', `${sci(result.impactor.energyJ)} J`)}${metric('TNT equivalent', `${sci(result.impactor.energyMegatonsTNT)} Mt`)}${metric('Final crater', `${n(result.crater.finalDiameterKm,1)} km`)}${metric('Severe thermal reach', `${n(result.regional.thermalSevereKm,0)} km`)}${metric('Light reduction', `${n(result.climate.lightReductionFraction*100,0)}%`)}${metric('Temperature envelope', `${n(result.climate.temperatureAnomalyC,1)} °C`)}${metric('Ecological category', result.ecology.category)}
     <p class="warning">${target.uncertaintyNote} ${result.ecology.precisionNote}</p>
+    <p class="quiet">The crater drawn on the globe is an illustration: its angular size tracks the modelled final diameter but is exaggerated for legibility. Read the number, not the picture.</p>
     <h3>Location probes (${probes.length}/4)</h3>
     ${probes.length ? probes.map((p,i)=>probeCard(p,i)).join('') : '<p class="quiet empty-state">No probes yet. Add one to inspect arrival order and local severity estimates.</p>'}
     <div class="button-grid"><button data-probe-add ${probes.length>=4?'disabled':''}>Add probe on Earth</button><button data-probe-clear ${!probes.length?'disabled':''}>Clear probes</button></div>`;

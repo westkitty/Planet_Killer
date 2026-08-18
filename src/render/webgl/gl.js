@@ -66,6 +66,12 @@ export function createTexture(gl, width, height, data, { linear = true } = {}) {
   gl.bindTexture(gl.TEXTURE_2D, null); return texture;
 }
 
+/** Rewrites pixels into existing storage; only valid when the size is unchanged. */
+export function writeTexture(gl, texture, width, height, data) {
+  gl.bindTexture(gl.TEXTURE_2D, texture); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data); gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
 export function updateTexture(gl, texture, width, height, data) {
   gl.bindTexture(gl.TEXTURE_2D, texture); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data); gl.bindTexture(gl.TEXTURE_2D, null);

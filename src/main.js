@@ -1,7 +1,7 @@
 import { Renderer } from './render/webgl/Renderer.js';
 import { evaluateScenario } from './simulation/engine.js';
 import { HISTORICAL_SCENARIO, PRESETS, cloneScenario, normalizeScenario, exportScenario, importScenario } from './simulation/scenario.js';
-import { CHAPTERS, chapterAtTime, sliderToTime, timeToSlider, visualStateAtTime, formatModelTime } from './simulation/timeline.js';
+import { CHAPTERS, chapterAtTime, sliderToTime, timeToSlider, visualStateAtTime, formatModelTime, formatCountdown, playbackRateAt } from './simulation/timeline.js';
 import { probeResult } from './simulation/probes.js';
 import { renderDrawer } from './ui/drawers.js';
 import { downloadText, scenarioFromHash, copyShareLink, captureFrame } from './ui/io.js';
@@ -26,12 +26,25 @@ const toast = document.querySelector('#toast');
 const srSummary = document.querySelector('#sr-summary');
 const dismissOnboarding = document.querySelector('#dismiss-onboarding');
 const openScienceIntro = document.querySelector('#open-science-intro');
+const mastheadNote = document.querySelector('#masthead-note');
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 const MOTION_KEY = 'planet-killer-motion';
 
+function showFallback(detail) {
+  const plate = document.createElement('div');
+  plate.className = 'fallback-plate';
+  const add = (className, text) => { const node = document.createElement('p'); node.className = className; node.textContent = text; plate.append(node); };
+  add('eyebrow', 'Renderer unavailable');
+  add('fallback-title', 'Planet Killer needs WebGL2.');
+  add('fallback-detail', detail);
+  add('fallback-detail', 'Open this page in a current browser with hardware acceleration switched on. Nothing else on the page will work until the renderer starts.');
+  fallback.replaceChildren(plate);
+  fallback.hidden = false;
+}
+
 let renderer;
 try { renderer = new Renderer(canvas); }
-catch (error) { fallback.hidden = false; fallback.textContent = error.message; throw error; }
+catch (error) { showFallback(error.message); throw error; }
 
 let scenario = cloneScenario(HISTORICAL_SCENARIO);
 try {
@@ -59,6 +72,7 @@ let reducedMotion = motionPreference ? motionPreference === 'reduce' : motionQue
 let cleanView = false;
 let lastFrame = performance.now();
 let lastAutoChapter = null;
+let contactPunched = scenario.timelineTime >= 0;   // a scenario that opens after contact must not kick the camera
 let chromeTimer = 0;
 let tsunamiTimer = 0;
 let toastTimer = 0;
@@ -122,6 +136,7 @@ function recompute({ refreshDrawer = true } = {}) {
   renderer.setEvaluation(comparisonHeld ? compareEvaluation : evaluation);
   renderer.setProbes(probes);
   requestTsunami();
+  mastheadNote.textContent = `K–Pg counterfactual · ${scenario.epochId === 'modern' ? 'present-day Earth' : '66 Ma proxy'}`;
   syncTimeline();
   refreshProbeResults();
   if (refreshDrawer) renderActiveDrawer();
@@ -141,21 +156,43 @@ function setModelTime(time) {
   if (autoDirector) runAutoDirector();
 }
 
+// syncTimeline runs on every animation frame during playback, so each write is
+// guarded: only values that actually changed touch the DOM and force style work.
+const timelineShown = { slider: null, progress: null, clock: null, chapter: null, contact: null, playing: null };
+
 function syncTimeline() {
   const sliderValue = Math.round(timeToSlider(scenario.timelineTime));
   const chapter = chapterAtTime(scenario.timelineTime);
-  slider.value = String(sliderValue);
-  slider.style.setProperty('--timeline-progress', `${sliderValue / 10}%`);
-  timeOutput.value = formatModelTime(scenario.timelineTime);
-  timeOutput.textContent = formatModelTime(scenario.timelineTime);
-  phaseOutput.value = chapter.label;
-  phaseOutput.textContent = chapter.label;
-  chapterSelect.value = chapter.id;
-  playPause.textContent = playing ? 'Ⅱ' : '▶';
-  playPause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
-  playPause.setAttribute('aria-pressed', String(playing));
-  playPause.dataset.state = playing ? 'playing' : 'paused';
-  launchButton.dataset.running = String(playing);
+  const clock = formatCountdown(scenario.timelineTime);
+  const clockText = `${clock.sign}${clock.value} ${clock.unit}`;
+  const progress = `${sliderValue / 10}%`;
+  const pastContact = String(scenario.timelineTime >= 0);
+
+  if (timelineShown.slider !== sliderValue) { slider.value = String(sliderValue); timelineShown.slider = sliderValue; }
+  // Set on the timeline, not the slider: the boundary rule's ::after reads it
+  // from here and the slider track inherits it.
+  if (timelineShown.progress !== progress) { timeline.style.setProperty('--timeline-progress', progress); timelineShown.progress = progress; }
+  if (timelineShown.contact !== pastContact) { timeline.dataset.pastContact = pastContact; timelineShown.contact = pastContact; }
+  if (timelineShown.clock !== clockText) {
+    timeOutput.value = clockText;
+    timeOutput.textContent = clockText;
+    timeOutput.title = formatModelTime(scenario.timelineTime);
+    timelineShown.clock = clockText;
+  }
+  if (timelineShown.chapter !== chapter.id) {
+    phaseOutput.value = chapter.label;
+    phaseOutput.textContent = chapter.label;
+    chapterSelect.value = chapter.id;
+    timelineShown.chapter = chapter.id;
+  }
+  if (timelineShown.playing !== playing) {
+    playPause.textContent = playing ? 'Ⅱ' : '▶';
+    playPause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    playPause.setAttribute('aria-pressed', String(playing));
+    playPause.dataset.state = playing ? 'playing' : 'paused';
+    launchButton.dataset.running = String(playing);
+    timelineShown.playing = playing;
+  }
 }
 
 function runAutoDirector() {
@@ -283,8 +320,8 @@ function setCleanView(value) {
     if (cleanView) element.setAttribute('aria-hidden', 'true');
     else element.removeAttribute('aria-hidden');
   }
-  toast.setAttribute('aria-hidden', cleanView ? 'true' : 'false');
-  if (!cleanView) {
+  if (cleanView) toast.setAttribute('aria-hidden', 'true');
+  else {
     toast.removeAttribute('aria-hidden');
     renderActiveDrawer();
     showChrome();
@@ -294,6 +331,7 @@ function setCleanView(value) {
 function setReducedMotion(value, { persist = true } = {}) {
   reducedMotion = Boolean(value);
   document.body.classList.toggle('reduced-motion', reducedMotion);
+  renderer.setReducedMotion(reducedMotion);
   if (persist) {
     motionPreference = reducedMotion ? 'reduce' : 'normal';
     try { localStorage.setItem(MOTION_KEY, motionPreference); } catch { /* preference still applies for this session */ }
@@ -395,6 +433,11 @@ function adjustSpeed(direction) {
 
 function launch() {
   setModelTime(-30);
+  contactPunched = false;
+  // The camera stays the viewer's. Only recover the framing when the impact
+  // site is off the near face, so the sequence never plays out of shot.
+  const recovered = !autoDirector && !renderer.targetInFrame();
+  if (recovered) renderer.setCameraPreset('trajectory');
   playing = true;
   syncTimeline();
   clearTimeout(launchPulseTimer);
@@ -402,7 +445,8 @@ function launch() {
   void launchButton.offsetWidth;
   launchButton.classList.add('launching');
   launchPulseTimer = setTimeout(() => launchButton.classList.remove('launching'), 900);
-  notify('Impact sequence launched.');
+  if (recovered) notify('Impact sequence launched — camera returned to the target.');
+  else notify('Impact sequence launched.');
   scheduleChromeHide();
 }
 
@@ -437,6 +481,7 @@ function removeProbe(index) {
 function setTargetAt(hit) {
   scenario.target = { longitude: hit.longitude, latitude: hit.latitude };
   recompute();
+  if (autoDirector) runAutoDirector();
   notify(`Target: ${hit.latitude.toFixed(2)}°, ${hit.longitude.toFixed(2)}°`);
 }
 
@@ -502,7 +547,7 @@ drawer.addEventListener('click', async event => {
       notify('Scenario imported.');
     } catch (error) {
       const invalidDraft = document.querySelector('#scenario-json')?.value || '';
-      importStatus = { tone: 'error', message: `Import failed: ${error.message}` };
+      importStatus = { tone: 'error', message: `Nothing was imported and the current scenario is unchanged. ${error.message}` };
       renderActiveDrawer();
       requestAnimationFrame(() => {
         const input = drawer.querySelector('#scenario-json');
@@ -614,10 +659,15 @@ function frame(now) {
   const dt = Math.min(0.08, (now - lastFrame) / 1000);
   lastFrame = now;
   if (playing) {
-    const position = timeToSlider(scenario.timelineTime) + dt * 13 * playbackSpeed;
+    const current = timeToSlider(scenario.timelineTime);
+    const position = current + dt * 13 * playbackSpeed * playbackRateAt(current);
     if (position >= 1000) { playing = false; setModelTime(CHAPTERS.at(-1).time); }
     else setModelTime(sliderToTime(position));
   }
+  // One kick at contact, once per run, and only travelling forwards.
+  if (scenario.timelineTime >= 0 && !contactPunched) { contactPunched = true; renderer.punch(1); }
+  if (scenario.timelineTime < -0.5) contactPunched = false;
+  renderer.stepCamera(dt);
   renderer.render();
   requestAnimationFrame(frame);
 }

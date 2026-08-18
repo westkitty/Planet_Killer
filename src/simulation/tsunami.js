@@ -53,19 +53,25 @@ export function solveTsunami({ epochId, source, crater, impactor, width = 72, he
   }
 
   if (sourceTarget.medium !== 'ocean') {
-    return { applicable: false, width, height, arrivalSeconds: Array.from(arrivalSeconds), amplitude: Array.from(amplitude), ocean: Array.from(ocean), sourceStrength: 0, model: 'coarse shallow-water travel-time proxy' };
+    // Serialize unreached cells as null exactly as the applicable path does; emitting
+    // Infinity here surfaced as an infinite tsunami arrival on probes after a land impact.
+    return { applicable: false, width, height, arrivalSeconds: Array.from(arrivalSeconds, () => null), amplitude: Array.from(amplitude), ocean: Array.from(ocean), sourceStrength: 0, model: 'coarse shallow-water travel-time proxy' };
   }
 
   let sx = Math.floor((source.longitude + 180) / 360 * width) % width; if (sx < 0) sx += width;
   let sy = Math.max(0, Math.min(height - 1, Math.floor((source.latitude + 90) / 180 * height)));
   let sourceIndex = sy * width + sx;
   if (!ocean[sourceIndex]) {
-    let best = null;
+    // Nearest ocean cell by ring distance. The inner break only left the dx loop,
+    // so a farther cell in the same ring could overwrite a nearer one.
+    let best = null, bestDistance = Infinity;
     for (let radius = 1; radius < 5 && !best; radius++) {
       for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
         const yy = sy + dy; if (yy < 0 || yy >= height) continue;
         const xx = (sx + dx + width) % width; const ii = yy * width + xx;
-        if (ocean[ii]) { best = [xx, yy, ii]; break; }
+        if (!ocean[ii]) continue;
+        const distance = dx * dx + dy * dy;
+        if (distance < bestDistance) { bestDistance = distance; best = [xx, yy, ii]; }
       }
     }
     if (best) [sx, sy, sourceIndex] = best;

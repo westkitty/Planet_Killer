@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#02050a" />
+  <meta name="theme-color" content="#05080c" />
   <meta name="description" content="Counterfactual K-Pg impact simulation." />
   <title>Planet Killer</title>
   <link rel="stylesheet" href="./styles.css" />
@@ -13,10 +13,16 @@
     <canvas id="viewport" aria-label="Interactive three-dimensional Earth impact simulation"></canvas>
     <div id="fallback" class="fallback" hidden role="alert"></div>
 
+    <header class="masthead">
+      <span class="masthead-name">Planet Killer</span>
+      <span class="masthead-rule"></span>
+      <span class="masthead-note" id="masthead-note">K–Pg counterfactual · 66 Ma proxy</span>
+    </header>
+
     <section id="onboarding" class="onboarding" role="dialog" aria-labelledby="onboarding-title" aria-describedby="onboarding-description">
-      <p class="eyebrow">COUNTERFACTUAL K–PG SIMULATION</p>
-      <h1 id="onboarding-title">Move the impact. Change the chain.</h1>
-      <p id="onboarding-description">Drag to orbit. Scroll or pinch to zoom. Click Earth to place the target. Launch, pause, rewind, and keep the camera.</p>
+      <p class="eyebrow">66 Ma · Chicxulub · counterfactual</p>
+      <h1 id="onboarding-title">Move the impact.<br />Change the chain.</h1>
+      <p id="onboarding-description">Drag to orbit. Click Earth to place the target. Launch, scrub and rewind — every frame is recomputed from the model, never replayed.</p>
       <div class="onboarding-actions">
         <button id="dismiss-onboarding" class="primary">Enter simulation</button>
         <button id="open-science-intro" class="secondary">Model limits</button>
@@ -24,12 +30,12 @@
     </section>
 
     <nav id="edge-controls" class="edge-controls" aria-label="Simulation controls">
-      <button data-drawer="impactor" aria-label="Impactor and target controls" aria-controls="drawer" aria-expanded="false" title="Impactor and target">☄</button>
-      <button data-action="launch" aria-label="Launch impact" title="Launch">▶</button>
-      <button data-drawer="camera" aria-label="Camera controls" aria-controls="drawer" aria-expanded="false" title="Camera">◉</button>
-      <button data-drawer="compare" aria-label="Compare scenarios" aria-controls="drawer" aria-expanded="false" title="Compare">◫</button>
-      <button data-drawer="science" aria-label="Science and results" aria-controls="drawer" aria-expanded="false" title="Science">≋</button>
-      <button data-drawer="settings" aria-label="Settings and sharing" aria-controls="drawer" aria-expanded="false" title="Settings">⚙</button>
+      <button data-action="launch" aria-label="Launch impact" title="Launch"><span class="rail-glyph" aria-hidden="true">▶</span><span class="rail-label">Launch</span></button>
+      <button data-drawer="impactor" aria-label="Impactor and target controls" aria-controls="drawer" aria-expanded="false" title="Impactor"><span class="rail-glyph" aria-hidden="true">☄</span><span class="rail-label">Impactor</span></button>
+      <button data-drawer="camera" aria-label="Camera controls" aria-controls="drawer" aria-expanded="false" title="Camera"><span class="rail-glyph" aria-hidden="true">◉</span><span class="rail-label">Camera</span></button>
+      <button data-drawer="compare" aria-label="Compare scenarios" aria-controls="drawer" aria-expanded="false" title="Compare"><span class="rail-glyph" aria-hidden="true">◫</span><span class="rail-label">Compare</span></button>
+      <button data-drawer="science" aria-label="Science and results" aria-controls="drawer" aria-expanded="false" title="Science"><span class="rail-glyph" aria-hidden="true">≋</span><span class="rail-label">Science</span></button>
+      <button data-drawer="settings" aria-label="Settings and sharing" aria-controls="drawer" aria-expanded="false" title="Settings"><span class="rail-glyph" aria-hidden="true">⚙</span><span class="rail-label">Settings</span></button>
     </nav>
 
     <aside id="drawer" class="drawer" hidden role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="drawer-title" tabindex="-1"></aside>
@@ -40,14 +46,14 @@
     </section>
 
     <section id="timeline" class="timeline" aria-label="Simulation time controls">
+      <output id="time-output" for="time-slider">−30 s</output>
       <button data-time-action="restart" aria-label="Restart timeline">↺</button>
       <button data-time-action="back" aria-label="Step backward">◀</button>
       <button id="play-pause" data-time-action="play" aria-label="Play" aria-pressed="false" data-state="paused">▶</button>
       <button data-time-action="forward" aria-label="Step forward">▶</button>
       <input id="time-slider" type="range" min="0" max="1000" step="1" value="0" aria-label="Simulation timeline" aria-describedby="phase-output time-output" />
-      <output id="time-output" for="time-slider">−30 s</output>
       <select id="chapter-select" aria-label="Jump to event phase">
-        <option value="approach">Approach</option><option value="entry">Entry</option><option value="contact">Contact</option><option value="excavation">Excavation</option><option value="regional">Regional</option><option value="tsunami">Tsunami</option><option value="encirclement">Encirclement</option><option value="winter">Impact winter</option><option value="recovery">Recovery</option>
+        <option value="approach">Approach</option><option value="entry">Atmospheric entry</option><option value="contact">Contact</option><option value="excavation">Fireball / excavation</option><option value="crater">Crater modification</option><option value="regional">Blast / thermal / seismic</option><option value="ejecta">Ejecta re-entry</option><option value="tsunami">Tsunami propagation</option><option value="encirclement">Atmospheric encirclement</option><option value="winter">Impact winter</option><option value="recovery">Early recovery</option>
       </select>
       <select id="speed-select" aria-label="Playback speed">
         <option value="0.25">¼×</option><option value="1" selected>1×</option><option value="4">4×</option><option value="16">16×</option>

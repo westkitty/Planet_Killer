@@ -16,9 +16,12 @@ export function sphereGeometry(latSegments = 48, lonSegments = 96) {
       positions.push(sx, sy, sz); normals.push(sx, sy, sz); uvs.push(u, 1 - v);
     }
   }
+  // Counter-clockwise when seen from outside the sphere, so gl.cullFace(BACK)
+  // removes the far hemisphere. The previous order was reversed, which left the
+  // renderer drawing the inside of the far side.
   for (let y = 0; y < latSegments; y++) for (let x = 0; x < lonSegments; x++) {
     const a = y * (lonSegments + 1) + x, b = a + lonSegments + 1;
-    indices.push(a, b, a + 1, b, b + 1, a + 1);
+    indices.push(a, a + 1, b, b, a + 1, b + 1);
   }
   return { positions: new Float32Array(positions), normals: new Float32Array(normals), uvs: new Float32Array(uvs), indices: new Uint32Array(indices) };
 }

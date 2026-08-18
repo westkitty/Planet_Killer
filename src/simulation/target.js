@@ -85,7 +85,7 @@ export function targetAt({ epochId = 'cretaceous66', longitude = -86.8, latitude
     sulfatePotential = 0.05;
     carbonatePotential = 0.08;
     organicPotential = 0.04;
-    dataQuality = epochId === 'modern' ? 'regional-proxy' : 'regional-proxy';
+    dataQuality = 'regional-proxy';
   } else {
     className = 'continental-mixed';
     densityKgM3 = 2700;

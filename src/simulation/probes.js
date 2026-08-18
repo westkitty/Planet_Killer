@@ -28,7 +28,7 @@ export function probeResult({ longitude, latitude, source, result, tsunamiField 
       seismicSeconds,
       blastSeconds,
       ejectaSeconds,
-      tsunamiSeconds: tsunami?.arrivalSeconds ?? null
+      tsunamiSeconds: Number.isFinite(tsunami?.arrivalSeconds) ? tsunami.arrivalSeconds : null
     },
     severity: {
       blast: blastSeverity,
