@@ -6,7 +6,7 @@ import {
 } from '../src/simulation/impactorClasses.js';
 import {
   HISTORICAL_SCENARIO, normalizeScenario, applyImpactorClass, validateImpactorField,
-  IMPACTOR_BOUNDS, CUSTOM_CLASS_ID
+  IMPACTOR_BOUNDS, CUSTOM_CLASS_ID, importScenario
 } from '../src/simulation/scenario.js';
 import { deriveImpactor } from '../src/simulation/core.js';
 import { evaluateScenario } from '../src/simulation/engine.js';
@@ -123,4 +123,17 @@ test('scenario round trip preserves class identity', () => {
   const re = normalizeScenario(imported);
   assert.equal(re.impactor.classId, 'cometary');
   assert.equal(re.impactor.densityKgM3, IMPACTOR_CLASSES.cometary.densityKgM3);
+});
+
+test('known class reconciles stale or missing composition (display/sim never desync)', () => {
+  // Class chosen but composition omitted -> reconciled to the class label.
+  const s1 = importScenario(JSON.stringify({ impactor: { classId: 'cometary' } }));
+  assert.equal(s1.impactor.composition, IMPACTOR_CLASSES.cometary.compositionString);
+  // Class chosen with a stale composition -> overridden by the class label.
+  const s2 = importScenario(JSON.stringify({ impactor: { classId: 'metallic', composition: 'stony chondritic body' } }));
+  assert.equal(s2.impactor.composition, IMPACTOR_CLASSES.metallic.compositionString);
+  // Custom (unknown) class keeps its free-form composition.
+  const s3 = importScenario(JSON.stringify({ impactor: { classId: 'weird', composition: 'my own body' } }));
+  assert.equal(s3.impactor.classId, 'custom');
+  assert.equal(s3.impactor.composition, 'my own body');
 });

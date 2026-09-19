@@ -89,6 +89,14 @@ export function normalizeScenario(input = {}) {
   // Unknown/removed class identifiers normalize to an explicit custom envelope
   // marker rather than silently adopting a different class's defaults.
   source.impactor.classId = knownClassId(source.impactor.classId);
+  // A known class fully determines its composition label — the renderer uses
+  // that label for the impactor's visual material — so re-derive it on every
+  // normalization: an import with a stale or missing composition can never
+  // desynchronize the displayed class from the rendered body. The 'custom'
+  // marker keeps its free-form composition (composition is not a user-editable
+  // field for known classes; class selection is the explicit action).
+  const klass = IMPACTOR_CLASSES[source.impactor.classId];
+  if (klass) source.impactor.composition = klass.compositionString;
   source.target.longitude = finite('longitude', source.target.longitude, -180, 180);
   source.target.latitude = finite('latitude', source.target.latitude, -90, 90);
   source.impactor.diameterM = finite('diameterM', source.impactor.diameterM, 10, 100000);

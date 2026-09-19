@@ -36,7 +36,7 @@ Open `http://127.0.0.1:4173` in a WebGL2-capable browser.
 ## Validate
 
 ```bash
-npm test             # 111 deterministic Node tests (the stub-GL suite carries the framebuffer proof here)
+npm test             # 112 deterministic Node tests (the stub-GL suite carries the framebuffer proof here)
 npm run check        # module syntax, no hotlinks, no workflow residue
 npm run build        # self-contained dist/ with the offline documentation tree
 npm run smoke:webgl  # real-browser WebGL2 proof (needs a browser; exit 3 = conclusively-demonstrated browser blocker)
