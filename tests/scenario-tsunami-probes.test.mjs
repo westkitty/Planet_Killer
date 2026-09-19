@@ -27,3 +27,15 @@ test('great-circle distance is symmetric', () => assert.ok(Math.abs(greatCircleK
 test('probe returns ordered physical arrivals', () => {
   const e=evaluateScenario(HISTORICAL_SCENARIO); const p=probeResult({longitude:-70,latitude:25,source:e.scenario.target,result:e.result}); assert.ok(p.arrivals.thermalSeconds < p.arrivals.seismicSeconds && p.arrivals.seismicSeconds < p.arrivals.blastSeconds);
 });
+
+test('import rejects non-object scenario documents with a clean error', () => {
+  for (const text of ['null', 'true', '42', '"str"', '[]']) {
+    assert.throws(() => importScenario(text), /JSON object/);
+  }
+});
+
+test('normalizeScenario treats null input as defaults (no TypeError)', () => {
+  const n = normalizeScenario(null);
+  assert.equal(n.target.longitude, HISTORICAL_SCENARIO.target.longitude);
+  assert.equal(n.impactor.diameterM, HISTORICAL_SCENARIO.impactor.diameterM);
+});

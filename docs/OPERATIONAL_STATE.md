@@ -18,7 +18,7 @@ Open the URL in a WebGL2-capable browser. There is no build step required to run
 ## How to verify (the four gates)
 
 ```bash
-npm test              # 112 deterministic Node tests (stub-GL carries the framebuffer proof here)
+npm test              # 114 deterministic Node tests (stub-GL carries the framebuffer proof here)
 npm run check         # module syntax, no hotlinks, no workflow residue
 npm run build         # self-contained dist/ with offline docs
 npm run smoke:webgl   # real-browser WebGL2 proof (needs a browser; see below)
@@ -46,7 +46,7 @@ execute for real; a browser-blocked result is recorded as a warning, not waved t
 ## What is proven now vs. what is not
 
 **Executed and passing in this environment**
-- All 112 deterministic tests, including the stub-GL deterministic framebuffer checkpoint suite
+- All 114 deterministic tests, including the stub-GL deterministic framebuffer checkpoint suite
   (Approach/Contact/ejecta-plume/tsunami/winter), rewind determinism, context loss/restore
   resource flatness, 12-restart no-accumulation, and stale-worker rejection.
 - Project integrity checks and the self-contained build (with offline documentation).

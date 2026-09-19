@@ -78,10 +78,11 @@ function finite(name, value, min, max) {
 
 export function normalizeScenario(input = {}) {
   const base = cloneScenario(HISTORICAL_SCENARIO);
-  const source = { ...base, ...input };
-  source.target = { ...base.target, ...(input.target || {}) };
-  source.impactor = { ...base.impactor, ...(input.impactor || {}) };
-  source.climateOptions = { ...base.climateOptions, ...(input.climateOptions || {}) };
+  const value = input || {};
+  const source = { ...base, ...value };
+  source.target = { ...base.target, ...(value.target || {}) };
+  source.impactor = { ...base.impactor, ...(value.impactor || {}) };
+  source.climateOptions = { ...base.climateOptions, ...(value.climateOptions || {}) };
   source.schemaVersion = SCHEMA_VERSION;
   source.modelVersion = MODEL_VERSION;
   source.seed = Number.isInteger(source.seed) ? source.seed >>> 0 : hashSeed(source.seed);
@@ -166,6 +167,12 @@ export function exportScenario(scenario) {
 
 export function importScenario(text) {
   const parsed = JSON.parse(text);
+  // A scenario document is a JSON object. Anything else (null, "true", 42,
+  // "str", an array) is invalid input: reject it with a clean message rather
+  // than letting a downstream TypeError leak to the UI.
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Scenario import must be a JSON object.');
+  }
   if (parsed.schemaVersion != null && parsed.schemaVersion > SCHEMA_VERSION) throw new Error('Scenario schema is newer than this build');
   return normalizeScenario(parsed);
 }
