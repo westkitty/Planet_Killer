@@ -280,7 +280,10 @@ async function main() {
       console.error('[smoke] Live WebGL2 proof needs a browser runtime; the deterministic stub-GL Node suite carries the executed state proof until one is available.');
       return 3;
     }
-    const { chromium } = await import('playwright-core');
+    // The browser instance comes from resolveBrowser(), which already located
+    // playwright-core (directly or via the bundled tools/ copy) — do NOT
+    // re-import it here: a direct import can fail even when the bundled copy
+    // worked, which would misclassify a live run as a harness error.
     const context = await resolved.browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
     page = await context.newPage();
     consoleErrors = [];
@@ -294,13 +297,20 @@ async function main() {
 
     const boot = await page.evaluate(() => ({ ready: Boolean(window.__pkBootReady), error: window.__pkBootError || null, handle: Boolean(window.__planetKillerSmoke) }));
     const sBootSignal = step('app-boot-signal');
+    // Boot-blocking failures are phase-tagged in main.js: a missing WebGL2
+    // context throws 'webgl2-unavailable', shader compile/link failures throw
+    // 'shader-construction'; everything else is a generic app-boot failure
+    // (or a timeout when no error was recorded).
+    const bootClass = boot.error?.phase === 'webgl2-unavailable' ? 'webgl2-unavailable'
+      : boot.error?.phase === 'shader-construction' ? 'shader-construction'
+      : (boot.error ? 'app-boot-failure' : 'app-boot-timeout');
     if (!boot.ready || !boot.handle) {
-      fail(sBootSignal, boot.error ? 'app-boot-failure' : 'app-boot-timeout', JSON.stringify(boot.error || 'smoke handle missing'));
+      fail(sBootSignal, bootClass, JSON.stringify(boot.error || 'smoke handle missing'));
       return 1;
     }
     pass(sBootSignal, 'window.__pkBootReady set and smoke handle live');
-    // Surface shader compile/link failures that throw during construction.
-    if (boot.error) { fail(sBootSignal, 'shader-construction', String(boot.error)); return 1; }
+    // Defensive: boot error alongside a ready signal is a state contradiction.
+    if (boot.error) { fail(sBootSignal, bootClass, JSON.stringify(boot.error)); return 1; }
 
     if (await runProofs()) {
       report.outcome = 'pass'; report.classification = 'all-proof-steps-passed';

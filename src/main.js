@@ -55,8 +55,16 @@ function showFallback(detail) {
 let renderer;
 try { renderer = new Renderer(canvas); }
 catch (error) {
-  window.__pkBootError = { phase: 'renderer-construction', message: error?.message || String(error) };
-  showFallback(error.message);
+  // Tag the failure phase explicitly so the smoke harness can classify
+  // WebGL2-unavailable and shader compile/link failures separately from
+  // other construction failures (the renderer throws with the GL info log
+  // for shader problems and a fixed message when getContext('webgl2') fails).
+  const message = error?.message || String(error);
+  const phase = /webgl2/i.test(message) ? 'webgl2-unavailable'
+    : /shader|compile|link/i.test(message) ? 'shader-construction'
+    : 'renderer-construction';
+  window.__pkBootError = { phase, message };
+  showFallback(message);
   throw error;
 }
 
