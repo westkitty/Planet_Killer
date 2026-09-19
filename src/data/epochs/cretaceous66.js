@@ -17,6 +17,13 @@ export const cretaceous66Epoch = {
     [[-45,72],[-23,82],[-48,84],[-66,77]],
     [[-180,-67],[180,-67],[180,-90],[-180,-90]]
   ],
+  // Categorical water cuts: the Western Interior Seaway is subtracted from the
+  // coarse North American outline. Its position follows the established
+  // late-Cretaceous paleogeographic record (CAO2017 family); it is a
+  // land/sea class cut only — no paleodepth is implied.
+  waterCuts: [
+    [[-114,56],[-100,57],[-90,48],[-95,36],[-106,30],[-114,42]]
+  ],
   shallowZones: [
     { center: [-86, 20], radiusDeg: 11, className: 'carbonate-evaporite-shelf', sulfatePotential: 0.95, carbonatePotential: 0.95, organicPotential: 0.62, historical: true },
     { center: [-98, 44], radiusDeg: 11, className: 'western-interior-seaway', sulfatePotential: 0.42, carbonatePotential: 0.58, organicPotential: 0.44 },

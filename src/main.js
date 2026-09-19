@@ -1,10 +1,20 @@
 import { Renderer } from './render/webgl/Renderer.js';
 import { evaluateScenario } from './simulation/engine.js';
-import { HISTORICAL_SCENARIO, PRESETS, cloneScenario, normalizeScenario, exportScenario, importScenario } from './simulation/scenario.js';
+import {
+  HISTORICAL_SCENARIO, PRESETS, cloneScenario, normalizeScenario, exportScenario, importScenario,
+  applyImpactorClass, validateImpactorField, IMPACTOR_CLASSES, IMPACTOR_CLASS_ORDER, CUSTOM_CLASS_ID
+} from './simulation/scenario.js';
+import { ATLAS, atlasEntryById, applyAtlasEntry, atlasComparisonScenario } from './simulation/atlas.js';
+import { provenanceRowsFor } from './simulation/provenance.js';
 import { CHAPTERS, chapterAtTime, sliderToTime, timeToSlider, visualStateAtTime, formatModelTime, formatCountdown, playbackRateAt } from './simulation/timeline.js';
+import { PHASE_CHECKPOINTS } from './render/webgl/checkpoints.js';
 import { probeResult } from './simulation/probes.js';
-import { renderDrawer } from './ui/drawers.js';
+import { renderDrawer, setCompareAtlasEntries, classInfoMap } from './ui/drawers.js';
 import { downloadText, scenarioFromHash, copyShareLink, captureFrame } from './ui/io.js';
+
+// Populate the drawer's class registry once, from the simulation layer.
+for (const id of IMPACTOR_CLASS_ORDER) classInfoMap[id] = IMPACTOR_CLASSES[id];
+setCompareAtlasEntries(ATLAS);
 
 const canvas = document.querySelector('#viewport');
 const fallback = document.querySelector('#fallback');
@@ -44,7 +54,11 @@ function showFallback(detail) {
 
 let renderer;
 try { renderer = new Renderer(canvas); }
-catch (error) { showFallback(error.message); throw error; }
+catch (error) {
+  window.__pkBootError = { phase: 'renderer-construction', message: error?.message || String(error) };
+  showFallback(error.message);
+  throw error;
+}
 
 let scenario = cloneScenario(HISTORICAL_SCENARIO);
 try {
@@ -57,8 +71,8 @@ try { motionPreference = localStorage.getItem(MOTION_KEY); } catch { /* storage 
 if (!['reduce', 'normal'].includes(motionPreference)) motionPreference = null;
 
 let evaluation = evaluateScenario(scenario);
-let compareKey = 'historical';
-let compareEvaluation = evaluateScenario(PRESETS[compareKey]);
+let compareKey = 'preset:historical';
+let compareEvaluation = evaluateScenario({ ...PRESETS.historical, timelineTime: scenario.timelineTime });
 let comparisonHeld = false;
 let probes = [];
 let probeResults = [];
@@ -81,7 +95,9 @@ let primaryTsunami = null;
 let compareTsunami = null;
 let tsunamiStatus = { state: 'updating', label: 'Tsunami field updating' };
 let tsunamiRequestId = 0;
+let tsunamiRequestedAt = 0;
 let importStatus = null;
+let editStatus = null;
 let lastSummaryAt = 0;
 let lastSummaryChapter = '';
 const bookmarks = new Map();
@@ -90,10 +106,26 @@ let primaryPointer = null;
 let pointerMoved = false;
 let pinchDistance = null;
 
+function compareScenarioFor(key) {
+  if (key.startsWith('atlas:')) {
+    const entry = atlasEntryById(key.slice('atlas:'.length));
+    if (entry) return { kind: 'atlas', entry, scenario: atlasComparisonScenario(scenario, entry) };
+  }
+  const presetKey = key.startsWith('preset:') ? key.slice('preset:'.length) : key;
+  if (PRESETS[presetKey]) return { kind: 'preset', entry: null, scenario: PRESETS[presetKey] };
+  return { kind: 'preset', entry: null, scenario: PRESETS.historical };
+}
+
+function compareDisplayName() {
+  const { kind, entry, scenario: s } = compareScenarioFor(compareKey);
+  return kind === 'atlas' ? `Atlas — ${entry.name}` : (s.name || 'historical');
+}
+
 const primaryWorker = new Worker(new URL('./workers/tsunamiWorker.js', import.meta.url), { type: 'module' });
 const compareWorker = new Worker(new URL('./workers/tsunamiWorker.js', import.meta.url), { type: 'module' });
 primaryWorker.onmessage = ({ data }) => {
   if (data.requestId !== tsunamiRequestId) return;
+  renderer.perf.addWorkerLatency(performance.now() - tsunamiRequestedAt);
   primaryTsunami = data.ok ? data.field : null;
   tsunamiStatus = data.ok
     ? { state: data.field?.applicable ? 'ready' : 'unavailable', label: data.field?.applicable ? 'Tsunami field ready' : 'Tsunami not applicable' }
@@ -106,12 +138,21 @@ compareWorker.onmessage = ({ data }) => {
   if (data.requestId !== tsunamiRequestId) return;
   compareTsunami = data.ok ? data.field : null;
   if (comparisonHeld) renderer.setTsunamiField(compareTsunami);
+  refreshCompareProbeArrivals();
 };
 primaryWorker.onerror = () => {
   tsunamiStatus = { state: 'error', label: 'Tsunami worker error' };
   primaryTsunami = null;
   if (activeDrawer === 'science') renderActiveDrawer();
   notify('Tsunami worker failed. Other model results remain available.');
+};
+
+// Context lifecycle: the renderer owns rebuild; the controller reports it.
+renderer.onContextLost = () => notify('Renderer context lost — restoring…');
+renderer.onContextRestored = () => {
+  renderer.render();
+  notify('Renderer context restored.');
+  if (activeDrawer === 'settings') renderActiveDrawer();
 };
 
 function workerPayload(current, requestId) {
@@ -124,19 +165,34 @@ function requestTsunami() {
   tsunamiStatus = { state: 'updating', label: 'Tsunami field updating' };
   if (activeDrawer === 'science') renderActiveDrawer();
   tsunamiTimer = setTimeout(() => {
+    tsunamiRequestedAt = performance.now();
     primaryWorker.postMessage(workerPayload(evaluation, requestId));
     compareWorker.postMessage(workerPayload(compareEvaluation, requestId));
   }, 80);
 }
 
+function refreshCompareProbeArrivals() {
+  if (!probes.length || !compareEvaluation) { compareEvaluation && (compareEvaluation.probeArrivals = null); return; }
+  const first = probes[0];
+  compareEvaluation.probeArrivals = probeResult({
+    longitude: first.longitude, latitude: first.latitude,
+    source: compareEvaluation.scenario.target,
+    result: compareEvaluation.result,
+    tsunamiField: compareTsunami
+  }).arrivals;
+}
+
 function recompute({ refreshDrawer = true } = {}) {
   scenario = normalizeScenario(scenario);
   evaluation = evaluateScenario(scenario);
-  compareEvaluation = evaluateScenario({ ...PRESETS[compareKey], timelineTime: scenario.timelineTime });
+  const compare = compareScenarioFor(compareKey);
+  compareEvaluation = evaluateScenario({ ...compare.scenario, timelineTime: scenario.timelineTime });
+  compareEvaluation.probeArrivals = null;
+  refreshCompareProbeArrivals();
   renderer.setEvaluation(comparisonHeld ? compareEvaluation : evaluation);
   renderer.setProbes(probes);
   requestTsunami();
-  mastheadNote.textContent = `K–Pg counterfactual · ${scenario.epochId === 'modern' ? 'present-day Earth' : '66 Ma proxy'}`;
+  mastheadNote.textContent = `K–Pg counterfactual · ${scenario.epochId === 'modern' ? 'present-day Earth' : '66 Ma reconstruction'}`;
   syncTimeline();
   refreshProbeResults();
   if (refreshDrawer) renderActiveDrawer();
@@ -231,11 +287,26 @@ function syncComparisonUI() {
 function drawerFocusSelector(element) {
   if (!element || !drawer.contains(element)) return null;
   if (element.id) return `#${CSS.escape(element.id)}`;
-  const key = Object.keys(element.dataset).find(name => ['closeDrawer','autoDirector','bookmarkSave','bookmarkRecall','compare','probeAdd','probeRemove','probeClear','cleanView','reducedMotion','export','share','import','capture'].includes(name));
+  const key = Object.keys(element.dataset).find(name => ['closeDrawer','autoDirector','bookmarkSave','bookmarkRecall','compare','probeAdd','probeRemove','probeClear','cleanView','reducedMotion','export','share','import','capture','atlasApply','classId','diagnosticsRefresh'].includes(name));
   if (!key) return null;
   const attribute = key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
   const value = element.dataset[key];
   return value ? `[data-${attribute}="${CSS.escape(value)}"]` : `[data-${attribute}]`;
+}
+
+function diagnosticsContext() {
+  const summary = renderer.perf.summary();
+  const live = renderer.resourceSummary?.() || null;
+  return {
+    summary,
+    drawCalls: renderer.drawStats.drawCalls,
+    triangles: renderer.drawStats.trianglesDrawn,
+    points: renderer.drawStats.pointsDrawn,
+    contextLosses: renderer.lifecycle.losses,
+    contextRestorations: renderer.lifecycle.restorations,
+    resources: live ? `${live.programs} programs · ${live.buffers} buffers · ${live.textures} textures` : 'n/a',
+    renderer: `WebGL2 · DPR cap 2 · budgets: ${2400} stars / ${520} ejecta / ${360} plume`
+  };
 }
 
 function renderActiveDrawer() {
@@ -260,7 +331,12 @@ function renderActiveDrawer() {
     reducedMotion,
     bookmarkSlots: [...bookmarks.keys()],
     tsunamiStatus,
-    importStatus
+    importStatus,
+    editStatus,
+    atlasEntries: ATLAS,
+    provenanceRows: provenanceRowsFor(evaluation),
+    diagnostics: activeDrawer === 'settings' ? diagnosticsContext() : null,
+    classInfo: { classes: IMPACTOR_CLASS_ORDER.map(id => IMPACTOR_CLASSES[id]) }
   });
   syncComparisonUI();
   if (focusSelector) requestAnimationFrame(() => drawer.querySelector(focusSelector)?.focus({ preventScroll: true }));
@@ -372,6 +448,7 @@ function formatFieldValue(path, raw) {
   if (path === 'impactor.densityKgM3') return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg/m³`;
   if (path === 'impactor.velocityMS') return `${(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km/s`;
   if (path === 'impactor.angleDeg') return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}°`;
+  if (path === 'impactor.azimuthDeg') return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}°`;
   return String(raw);
 }
 
@@ -390,6 +467,29 @@ function applyField(path, raw) {
   recompute({ refreshDrawer: false });
 }
 
+/**
+ * Numeric edit with safe failure: hard bounds are enforced by
+ * validateImpactorField; on failure the scenario is untouched and the error is
+ * surfaced inline. Valid commits mirror into the paired range control.
+ */
+function commitNumericEdit(input) {
+  const path = input.dataset.numeric;
+  if (!path) return;
+  try {
+    const { value } = validateImpactorField(path.split('.')[1], input.value, scenario.impactor.classId);
+    editStatus = null;
+    applyField(path, value);
+    const range = drawer.querySelector(`[data-field="${path}"]`);
+    if (range) { range.value = String(value); updateRangeFeedback(range); }
+    renderActiveDrawer();
+    requestAnimationFrame(() => drawer.querySelector(`[data-numeric="${path}"]`)?.focus({ preventScroll: true }));
+  } catch (error) {
+    editStatus = { tone: 'error', path, message: `Not applied — ${error.message}. The scenario is unchanged.` };
+    renderActiveDrawer();
+    requestAnimationFrame(() => drawer.querySelector(`[data-numeric="${path}"]`)?.focus({ preventScroll: true }));
+  }
+}
+
 function holdComparison(active) {
   if (comparisonHeld === active) return;
   comparisonHeld = active;
@@ -398,16 +498,15 @@ function holdComparison(active) {
   renderer.setTsunamiField(active ? compareTsunami : primaryTsunami);
   renderer.setProbes(active ? [] : probes);
   syncComparisonUI();
-  notify(active ? `B: ${PRESETS[compareKey].name}` : 'A: current scenario');
+  notify(active ? `B: ${compareDisplayName()}` : 'A: current scenario');
 }
 
 function setCompare(key) {
-  if (!PRESETS[key]) return;
-  compareKey = key;
-  compareEvaluation = evaluateScenario({ ...PRESETS[key], timelineTime: scenario.timelineTime });
+  const known = key.startsWith('atlas:') ? Boolean(atlasEntryById(key.slice('atlas:'.length))) : Boolean(PRESETS[key.startsWith('preset:') ? key.slice('preset:'.length) : key]);
+  if (!known) return;
+  compareKey = key.startsWith('atlas:') ? key : (key.startsWith('preset:') ? key : `preset:${key}`);
   compareTsunami = null;
-  requestTsunami();
-  renderActiveDrawer();
+  recompute({ refreshDrawer: true });
 }
 
 function chapterStep(direction) {
@@ -485,6 +584,16 @@ function setTargetAt(hit) {
   notify(`Target: ${hit.latitude.toFixed(2)}°, ${hit.longitude.toFixed(2)}°`);
 }
 
+function applyAtlas(id) {
+  const entry = atlasEntryById(id);
+  if (!entry) return;
+  const started = performance.now();
+  scenario = applyAtlasEntry(scenario, entry);
+  renderer.perf.addAtlasApply(performance.now() - started);
+  recompute();
+  notify(`Atlas target: ${entry.name}`);
+}
+
 function isTyping(event) { return /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName || '') || Boolean(event.target?.isContentEditable); }
 
 edgeControls.addEventListener('click', event => {
@@ -525,12 +634,20 @@ speedSelect.addEventListener('change', () => { playbackSpeed = Number(speedSelec
 drawer.addEventListener('click', async event => {
   const button = event.target.closest('button'); if (!button) return;
   if (button.dataset.closeDrawer !== undefined) return closeDrawer();
-  if (button.dataset.preset === 'historical') { scenario = cloneScenario(HISTORICAL_SCENARIO); importStatus = null; recompute(); }
+  if (button.dataset.preset === 'historical') { scenario = cloneScenario(HISTORICAL_SCENARIO); importStatus = null; editStatus = null; recompute(); }
   if (button.dataset.camera) { releaseDirector(); renderer.setCameraPreset(button.dataset.camera); }
   if (button.dataset.autoDirector !== undefined) { autoDirector = !autoDirector; lastAutoChapter = null; if (autoDirector) runAutoDirector(); renderActiveDrawer(); }
   if (button.dataset.bookmarkSave) { bookmarks.set(button.dataset.bookmarkSave, renderer.getCamera()); notify(`Camera ${button.dataset.bookmarkSave} saved.`); renderActiveDrawer(); }
   if (button.dataset.bookmarkRecall) { const saved = bookmarks.get(button.dataset.bookmarkRecall); if (saved) { releaseDirector(); renderer.setCamera(saved); } }
   if (button.dataset.compare) setCompare(button.dataset.compare);
+  if (button.dataset.compareSelect !== undefined) return; // handled on change
+  if (button.dataset.atlasApply) applyAtlas(button.dataset.atlasApply);
+  if (button.dataset.classId) {
+    scenario = applyImpactorClass(scenario, button.dataset.classId);
+    editStatus = null;
+    recompute();
+    notify('Class defaults applied — manual edits stay put from here.');
+  }
   if (button.dataset.probeAdd !== undefined) { setInteractionMode('probe'); closeDrawer({ restoreFocus: false }); }
   if (button.dataset.probeRemove !== undefined) removeProbe(Number(button.dataset.probeRemove));
   if (button.dataset.probeClear !== undefined) { probes = []; refreshProbeResults(); renderActiveDrawer(); notify('All probes cleared.'); }
@@ -557,6 +674,7 @@ drawer.addEventListener('click', async event => {
       });
     }
   }
+  if (button.dataset.diagnosticsRefresh !== undefined) { renderActiveDrawer(); }
   if (button.dataset.capture !== undefined) {
     const wasClean = cleanView;
     setCleanView(true);
@@ -576,7 +694,11 @@ drawer.addEventListener('input', event => {
   updateRangeFeedback(event.target);
   applyField(path, event.target.value);
 });
-drawer.addEventListener('change', event => { if (event.target.dataset.field) renderActiveDrawer(); });
+drawer.addEventListener('change', event => {
+  if (event.target.dataset.numeric) { commitNumericEdit(event.target); return; }
+  if (event.target.id === 'compare-b-field') { setCompare(event.target.value); return; }
+  if (event.target.dataset.field) renderActiveDrawer();
+});
 
 drawer.addEventListener('pointerdown', event => {
   const button = event.target.closest('[data-compare-hold]');
@@ -658,6 +780,7 @@ window.addEventListener('keyup', event => { if (event.key.toLowerCase() === 'b')
 function frame(now) {
   const dt = Math.min(0.08, (now - lastFrame) / 1000);
   lastFrame = now;
+  renderer.perf.addFrameTime(dt);
   if (playing) {
     const current = timeToSlider(scenario.timelineTime);
     const position = current + dt * 13 * playbackSpeed * playbackRateAt(current);
@@ -679,3 +802,69 @@ showChrome();
 updateSummary({ force: true });
 requestAnimationFrame(() => dismissOnboarding.focus({ preventScroll: true }));
 requestAnimationFrame(frame);
+
+/* ------------------------------------------------------------------ */
+/* Smoke/test handle. Exposed only when the page is loaded with the    */
+/* ?smoke=1 query parameter so the production surface stays clean.     */
+/* ------------------------------------------------------------------ */
+if (new URLSearchParams(location.search).has('smoke')) {
+  window.__planetKillerSmoke = {
+    boot: { ok: true, at: Date.now(), modelVersion: evaluation.result.modelVersion },
+    webgl2: Boolean(renderer.gl),
+    seek(time) { setModelTime(time); },
+    launch() { launch(); },
+    openDrawer(name) { openDrawer(name); },
+    closeDrawer() { closeDrawer(); },
+    applyAtlas(id) { applyAtlas(id); },
+    applyClass(id) { scenario = applyImpactorClass(scenario, id); recompute(); },
+    holdComparison(active) { holdComparison(Boolean(active)); },
+    setCompare(key) { setCompare(key); },
+    placeProbe(lng, lat) { addProbeAt({ longitude: lng, latitude: lat }); },
+    orbit(dx, dy) { renderer.orbitBy(dx, dy); },
+    dolly(delta) { renderer.dollyBy(delta); },
+    simulateContextLoss() { canvas.dispatchEvent(new Event('webglcontextlost')); },
+    // Faithful restore simulation on a live context: the driver has discarded
+    // the old GPU handles, so emulate that discard first, then let the
+    // renderer rebuild exactly as it would after a real restoration.
+    simulateContextRestore() {
+      renderer._destroyResources();
+      canvas.dispatchEvent(new Event('webglcontextrestored'));
+    },
+    state() {
+      return {
+        bootError: window.__pkBootError || null,
+        webgl2Supported: Boolean(renderer.gl),
+        modelVersion: evaluation.result.modelVersion,
+        resources: renderer.resourceSummary?.() || null,
+        scenario: normalizeScenario(scenario),
+        camera: renderer.getCamera(),
+        visual: { time: scenario.timelineTime, chapter: chapterAtTime(scenario.timelineTime).id },
+        drawStats: { ...renderer.drawStats },
+        drawLog: renderer.drawLog.map(e => ({ system: e.system, type: e.type, count: e.count })),
+        lifecycle: { ...renderer.lifecycle },
+        perf: renderer.perf.summary(),
+        comparison: { held: comparisonHeld, key: compareKey, name: compareDisplayName() },
+        activeDrawer,
+        playing,
+        probes: probes.length,
+        tsunami: { state: tsunamiStatus.state, label: tsunamiStatus.label, applicable: primaryTsunami?.applicable ?? null },
+        target: { ...evaluation.target },
+        checkpoints: PHASE_CHECKPOINTS
+      };
+    },
+    recordSymbol(name, extra = {}) { renderer.perf.recordSymbol(name, extra); },
+    symbols() { return renderer.perf.symbols; },
+    clearPerf() { renderer.perf.clear(); },
+    framebuffer(width = 96, height = 64) {
+      const gl = renderer.gl;
+      const w = Math.max(1, Math.min(512, width)), h = Math.max(1, Math.min(512, height));
+      const rgba = new Uint8Array(w * h * 4);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      return { rgba: Array.from(rgba), width: w, height: h };
+    }
+  };
+  // Boot success signal: part of the smoke surface, set only under ?smoke=1.
+  // (__pkBootError is set unconditionally during renderer construction because
+  // it is the failure signal the harness waits on when boot does not succeed.)
+  window.__pkBootReady = true;
+}

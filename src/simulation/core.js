@@ -152,3 +152,23 @@ export function simulateImmediate(scenario, target) {
   const ecology = ecologicalStress({ impactor, target, regional, climate });
   return { modelVersion: MODEL_VERSION, impactor, target, crater, regional, loading, climate, ecology };
 }
+
+/**
+ * Class-derived entry coupling (see impactorClasses.entryCouplingFactor). Bodies
+ * that ablate/disrupt high in the atmosphere (cometary, rubble) couple a little
+ * less of their energy into ground-driven loading; strong metallic bodies a little
+ * more. Applied to the loading indices with an explicit provenance label; it does
+ * not alter Level A mass/energy or the crater surrogate.
+ */
+export function applyEntryCoupling(loading, classId, factor) {
+  if (!Number.isFinite(factor) || factor === 1 || !Number.isFinite(loading?.silicateDustIndex)) return loading;
+  const f = Math.max(0.5, Math.min(1.5, factor));
+  return {
+    ...loading,
+    silicateDustIndex: loading.silicateDustIndex * f,
+    sulfateIndex: loading.sulfateIndex * f,
+    sootIndex: loading.sootIndex * f,
+    waterVaporIndex: loading.waterVaporIndex * f,
+    entryCoupling: { classId: classId || 'unknown', factor: f, model: 'reduced-order entry-coupling surrogate' }
+  };
+}

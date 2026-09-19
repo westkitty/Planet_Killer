@@ -45,3 +45,34 @@ The bounded architecture is inspectable and the static/test/build gates pass, bu
 - visual quality of the fixed budgets on real WebGL2 hardware.
 
 No performance number should be inferred from the existence of these budgets alone.
+
+## Raw-measurement evidence tooling
+
+`src/render/webgl/perf.js` is a bounded `PerfMonitor` (240-sample rings, no allocation escape):
+it records frame time, render time, worker latency, Atlas apply cost, and context
+loss/restoration counts, and exposes `summary()` plus per-scenario `recordSymbol()` snapshots.
+The Settings drawer renders a live snapshot on demand; the same structure feeds the collector.
+
+`scripts/perf-report.mjs` drives the app in a browser and captures **raw measurements only**
+into `docs/qa/perf-report.json` — no universal FPS target is asserted, and any threshold must be
+justified from project-measured evidence in this file. The scenario matrix is:
+
+| Scenario | What it isolates |
+|---|---|
+| idle | baseline frame/render cost with no playback |
+| impact-playback | live playback across contact/excavation |
+| peak-plume | ejecta + plume + vapor point systems at full budget |
+| tsunami | 72×36 worker field + per-cell arrival texture |
+| atlas | drawer render + Atlas entry apply |
+| synchronized-comparison | held B evaluation at the same modeled time |
+| context-restore | context loss → restore cycle, with GPU resource counts before/after (flatness is the assertion) |
+
+Each row reports frame seconds (median/p95), render seconds (median/p95), median FPS, worker ms
+(median/p95), Atlas apply ms, draw calls, triangle/point counts, and live `{programs, buffers,
+textures}`. When no browser is available (this container), the collector records the same
+conclusively-demonstrated external blocker instead of fabricating numbers; CI provisions a
+headless Chromium so the capture executes there.
+
+The deterministic stub-GL suite independently proves the **lifecycle** half: context loss/restore
+leaves resource counts flat, 12 restarts accumulate no GPU objects, and epoch textures are reused.
+That is executed here; the live-hardware raw numbers are captured where a browser exists.

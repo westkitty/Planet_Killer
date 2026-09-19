@@ -1,6 +1,8 @@
 dist/
 audit-output/
 docs/qa/screenshots/
+docs/qa/*.json
 *.log
 .DS_Store
 .resurrection/
+tools/webgl-smoke/node_modules/

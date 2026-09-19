@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { RENDER_BUDGETS } from '../src/render/webgl/Renderer.js';
 import { buildSurfacePixels, buildTsunamiPixels } from '../src/render/webgl/textures.js';
+import { targetAt } from '../src/simulation/target.js';
 
 test('renderer preserves catastrophe effect budgets', () => {
   assert.deepEqual(RENDER_BUDGETS, { stars:2400, milkyWay:1500, solarSprite:1, ejecta:520, plume:360, vapor:300, entryWake:180, dust:640, probes:4, earthLatSegments:56, earthLonSegments:112 });
@@ -14,6 +15,23 @@ test('modern and 66 Ma surface textures are materially distinct', () => {
   let differences = 0;
   for (let i = 0; i < modern.length; i += 4) if (modern[i] !== ancient[i] || modern[i + 3] !== ancient[i + 3]) differences++;
   assert.ok(differences > 48 * 24 * 0.2);
+});
+
+test('66 Ma WIS water cut agrees between target lookup and the surface texture', () => {
+  const { width, height, pixels } = buildSurfacePixels('cretaceous66', 96, 48);
+  const cellAlpha = (lon, lat) => {
+    const x = Math.floor((lon + 180) / 360 * width);
+    const y = Math.floor((90 - lat) / 180 * height);
+    return pixels[((y * width) + x) * 4 + 3];
+  };
+  // The Western Interior Seaway point is ocean in both the target model and the texture.
+  const wis = targetAt({ epochId: 'cretaceous66', longitude: -98, latitude: 44 });
+  assert.equal(wis.medium, 'ocean');
+  assert.ok(cellAlpha(-98, 44) === 255, 'WIS texture cell is ocean (alpha 255)');
+  // A point inside the 66 Ma North American outline but outside the water cut stays land.
+  const interior = targetAt({ epochId: 'cretaceous66', longitude: -112, latitude: 58 });
+  assert.equal(interior.medium, 'land');
+  assert.ok(cellAlpha(-112, 58) === 0, 'interior NA texture cell is land (alpha 0)');
 });
 
 test('tsunami visual texture follows per-cell arrival time', () => {

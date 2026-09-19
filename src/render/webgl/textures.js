@@ -1,5 +1,5 @@
 import { epochById } from '../../simulation/target.js';
-import { polygonContains } from '../../data/epochs/geometry.js';
+import { epochLandAt } from '../../data/epochs/geometry.js';
 
 function clamp255(value) { return Math.max(0, Math.min(255, Math.round(value))); }
 function mix(a, b, t) { return a + (b - a) * t; }
@@ -8,14 +8,35 @@ function smoothstep(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
+/**
+ * Categorical shallow-marine membership for the 66 Ma epoch. The 66 Ma surface
+ * is a source-backed categorical reconstruction (land / shallow-marine /
+ * deep-ocean bands), not paleobathymetry; this only decides which of the two
+ * ocean bands a cell belongs to for coloring.
+ */
+function in66MaShallowBand(epoch, lon, lat) {
+  if (epoch?.id !== 'cretaceous66' || !epoch.shallowZones?.length) return false;
+  const toRad = Math.PI / 180;
+  for (const zone of epoch.shallowZones) {
+    const [zl, za] = zone.center;
+    const p1 = za * toRad, p2 = lat * toRad;
+    const dp = (lat - za) * toRad, dl = (lon - zl) * toRad;
+    const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+    const d = 2 * Math.asin(Math.min(1, Math.sqrt(h))) / toRad;
+    if (d <= zone.radiusDeg) return true;
+  }
+  return false;
+}
+
 export function buildSurfacePixels(epochId, width = 256, height = 128) {
   const epoch = epochById(epochId), pixels = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y++) {
     const latitude = 90 - (y + 0.5) / height * 180;
     for (let x = 0; x < width; x++) {
       const longitude = -180 + (x + 0.5) / width * 360;
-      const land = epoch.landResolver ? epoch.landResolver(latitude, longitude) : polygonContains(longitude, latitude, epoch.land);
+      const land = epochLandAt(epoch, longitude, latitude);
       const relief = epoch.reliefResolver ? epoch.reliefResolver(latitude, longitude) : 0.5;
+      const shallow66 = !land && in66MaShallowBand(epoch, longitude, latitude);
       const flatten = smoothstep(72, 89, Math.abs(latitude));
       const variation = mix(0.92 + 0.08 * Math.sin(longitude * 0.19) * Math.cos(latitude * 0.31), 0.96, flatten);
       const i = (y * width + x) * 4;
@@ -30,9 +51,17 @@ export function buildSurfacePixels(epochId, width = 256, height = 128) {
         pixels[i + 3] = 0;
       } else {
         const depth = Math.max(0, 0.62 - relief);
-        pixels[i] = clamp255((14 + relief * 22) * variation);
-        pixels[i + 1] = clamp255((58 + relief * 62) * variation);
-        pixels[i + 2] = clamp255((104 + relief * 104 - depth * 38) * variation);
+        let r = (14 + relief * 22) * variation;
+        let g = (58 + relief * 62) * variation;
+        let b = (104 + relief * 104 - depth * 38) * variation;
+        if (shallow66) {
+          // Categorical shallow-marine band: a lighter, slightly green-laced
+          // continental-shelf tone that reads against the deep-basin blue.
+          r = r * 0.7 + 34; g = g * 0.72 + 66; b = b * 0.7 + 60;
+        }
+        pixels[i] = clamp255(r);
+        pixels[i + 1] = clamp255(g);
+        pixels[i + 2] = clamp255(b);
         pixels[i + 3] = 255;
       }
     }

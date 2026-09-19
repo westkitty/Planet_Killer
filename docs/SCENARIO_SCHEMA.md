@@ -39,6 +39,27 @@ A normalized scenario has this shape:
 
 The deterministic seed is stored with the scenario. Level A/B numerical results are deterministic for the same normalized scenario and model version. Timeline visual state is a pure function of modeled time; seeking backward reconstructs the same macro state instead of reversing accumulated animation history.
 
+## Impactor class and bounded editing
+
+`impactor.classId` names one of the six physical classes in `src/simulation/impactorClasses.js`
+(`historical-reference`, `stony`, `metallic`, `carbonaceous`, `rubble`, `cometary`); `impactor.composition`
+is the class's label string. `classId` selects literature-anchored density/velocity defaults and an
+**allowed envelope** — it does not lock the parameters.
+
+Bounded editing has two layers, both in `src/simulation/scenario.js`:
+
+- **Hard bounds** (`IMPACTOR_BOUNDS`): diameter, density, velocity, angle and azimuth each have a
+  supported physical range. A value outside the hard range is rejected with a `RangeError`
+  (`<field> <value> is outside the supported range <min>–<max> <unit>`); the scenario is left
+  unchanged and the error is surfaced inline in the drawer.
+- **Class envelope** (advisory): within the hard bounds, a density/velocity value that leaves the
+  selected class's literature envelope is still applied, but the UI flags it
+  (`outsideEnvelope`) as a class deviation. The class never silently re-snaps a manual edit.
+
+Angle is bounded `10–90°`; azimuth is bounded `0–360°` and normalized modulo 360. These bounds and
+envelopes are part of the scenario contract: the displayed value, the URL hash, and the simulation
+input are all derived from the same normalized scenario, so they cannot disagree.
+
 ## Sharing and files
 
 - **Export scenario** downloads the normalized JSON document.

@@ -4,7 +4,11 @@ import { targetAt, historicalTarget, epochById, angularDistanceDeg } from '../sr
 import { CHAPTERS, chapterAtTime, sliderToTime, timeToSlider, visualStateAtTime, formatModelTime } from '../src/simulation/timeline.js';
 
 test('modern and 66 Ma epochs are distinct', () => assert.notEqual(epochById('modern').sourceId, epochById('cretaceous66').sourceId));
-test('historical target carries proxy caveat', () => assert.match(historicalTarget().uncertaintyNote,/proxy/i));
+test('historical target carries categorical-reconstruction and proxy caveat', () => {
+  assert.match(historicalTarget().uncertaintyNote, /source-backed categorical reconstruction/i);
+  assert.match(historicalTarget().uncertaintyNote, /reduced-order proxies/i);
+  assert.match(historicalTarget().uncertaintyNote, /not surveyed paleobathymetry/i);
+});
 test('historical target is sulfate-rich regional class', () => assert.ok(historicalTarget().sulfatePotential > .7));
 test('present-day mid-Pacific point is ocean', () => assert.equal(targetAt({epochId:'modern',longitude:-150,latitude:0}).medium,'ocean'));
 test('present-day central North America point is land', () => assert.equal(targetAt({epochId:'modern',longitude:-100,latitude:40}).medium,'land'));

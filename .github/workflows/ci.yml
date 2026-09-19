@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One concurrent run per ref; a newer push supersedes an older one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Test · check · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Unit + integration tests (deterministic, stub-GL state proof)
+        run: npm test
+      - name: Project checks (module syntax, no hotlinks, no workflow residue)
+        run: npm run check
+      - name: Build (project-owned runtime + offline documentation)
+        run: npm run build
+      - name: Build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+
+  webgl-smoke:
+    name: WebGL2 smoke (real browser)
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install a headless Chromium the harness can drive
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          test -x "$CHROME"
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+      - name: WebGL2 smoke harness (classified pass / app-fail / harness-error / browser-blocked)
+        id: smoke
+        run: npm run smoke:webgl
+      - name: Performance evidence capture
+        if: always()
+        run: npm run perf || true
+      - name: Upload smoke + performance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webgl-smoke-report
+          path: |
+            docs/qa/webgl-smoke-report.json
+            docs/qa/perf-report.json
+          if-no-files-found: ignore
+      - name: Enforce smoke outcome
+        if: always()
+        run: |
+          # Exit codes: 0 pass · 1 app defect · 2 harness error · 3 external browser blocker.
+          # A genuine app or harness failure fails CI; a conclusively-demonstrated
+          # browser-runtime blocker is recorded (not waved through silently).
+          if [ "${{ steps.smoke.outcome }}" = "success" ]; then
+            echo "WebGL2 smoke: PASS"
+          elif [ -f docs/qa/webgl-smoke-report.json ]; then
+            outcome="$(node -e "console.log(require('./docs/qa/webgl-smoke-report.json').outcome)")"
+            if [ "$outcome" = "browser-blocked" ]; then
+              echo "::warning::WebGL2 smoke blocked by external browser runtime (see webgl-smoke-report artifact)."
+            else
+              echo "::error::WebGL2 smoke outcome: $outcome — see webgl-smoke-report artifact."
+              exit 1
+            fi
+          else
+            echo "::error::smoke step did not complete and no report was written."
+            exit 1
+          fi

@@ -1,6 +1,6 @@
 import { modernEpoch } from '../data/epochs/modern.js';
 import { cretaceous66Epoch } from '../data/epochs/cretaceous66.js';
-import { polygonContains } from '../data/epochs/geometry.js';
+import { polygonContains, epochLandAt } from '../data/epochs/geometry.js';
 
 const EPOCHS = { modern: modernEpoch, cretaceous66: cretaceous66Epoch };
 
@@ -26,33 +26,48 @@ function nearestZone(zones = [], lon, lat) {
 }
 
 function modernSurface(epoch, lon, lat) {
-  const land = epoch.landResolver ? epoch.landResolver(lat, lon) : polygonContains(lon, lat, epoch.land);
+  const land = epochLandAt(epoch, lon, lat);
   const relief = epoch.reliefResolver ? epoch.reliefResolver(lat, lon) : 0.5;
   if (land) {
     return {
       medium: 'land',
       elevationKm: Math.max(0, (relief - 0.36) * 6.2),
       waterDepthKm: 0,
+      waterDepthBand: 'land',
       surfaceDataState: 'derived-observational'
     };
   }
+  const depthKm = 0.35 + Math.max(0, 0.58 - relief) * 9.0;
   return {
     medium: 'ocean',
     elevationKm: 0,
-    waterDepthKm: 0.35 + Math.max(0, 0.58 - relief) * 9.0,
+    waterDepthKm: depthKm,
+    waterDepthBand: depthKm > 2 ? 'deep-ocean' : 'shallow-marine',
     surfaceDataState: 'derived-observational-proxy-depth'
   };
 }
 
 function ancientSurface(epoch, lon, lat) {
-  const land = polygonContains(lon, lat, epoch.land);
+  const land = epochLandAt(epoch, lon, lat);
   const shelf = nearestZone(epoch.shallowZones, lon, lat);
-  if (land) return { medium: 'land', elevationKm: 0.35, waterDepthKm: 0, surfaceDataState: 'reconstructed-proxy' };
+  if (land) {
+    return {
+      medium: 'land',
+      elevationKm: 0.35,
+      waterDepthKm: 0,
+      waterDepthBand: 'land',
+      surfaceDataState: 'source-backed-categorical-land'
+    };
+  }
+  const depthBand = shelf ? 'shallow-marine' : 'deep-ocean';
   return {
     medium: 'ocean',
     elevationKm: 0,
     waterDepthKm: shelf ? 0.18 + shelf.distanceDeg / Math.max(1, shelf.radiusDeg) * 0.8 : 3.8,
-    surfaceDataState: shelf ? 'regional-proxy' : 'global-categorical-proxy'
+    waterDepthBand: depthBand,
+    // The band is the source-backed classification; the meter value is a
+    // reduced-order interpolation inside that band, never surveyed depth.
+    surfaceDataState: shelf ? 'source-backed-categorical-shallow-marine' : 'source-backed-categorical-deep-ocean'
   };
 }
 
@@ -77,7 +92,9 @@ export function targetAt({ epochId = 'cretaceous66', longitude = -86.8, latitude
     sulfatePotential = shallow?.sulfatePotential ?? (epochId === 'modern' ? 0.12 : 0.16);
     carbonatePotential = shallow?.carbonatePotential ?? 0.24;
     organicPotential = shallow?.organicPotential ?? 0.14;
-    dataQuality = shallow ? (epochId === 'modern' ? 'regional-derived' : 'regional-proxy') : (epochId === 'modern' ? 'derived-observational' : 'global-proxy');
+    dataQuality = shallow
+      ? (epochId === 'modern' ? 'regional-derived' : 'categorical-regional-reconstruction')
+      : (epochId === 'modern' ? 'derived-observational' : 'categorical-global-reconstruction');
   } else if (crystalline) {
     className = 'crystalline-continental';
     densityKgM3 = 2850;
@@ -109,8 +126,9 @@ export function targetAt({ epochId = 'cretaceous66', longitude = -86.8, latitude
     organicPotential,
     dataQuality,
     sourceId: epoch.sourceId,
+    reconstructionState: epochId === 'cretaceous66' ? 'source-backed-categorical-reconstruction' : 'derived-observational',
     uncertaintyNote: epochId === 'cretaceous66'
-      ? '66 Ma target chemistry is categorical/proxy outside constrained regional classes.'
+      ? '66 Ma surface is a source-backed categorical reconstruction (land/shallow-marine/deep-ocean); water depth and chemistry remain reduced-order proxies inside the classified band, not surveyed paleobathymetry.'
       : 'Present-day land/sea is data-derived; depth and chemistry remain educational proxies.'
   };
 }

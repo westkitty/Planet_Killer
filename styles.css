@@ -719,3 +719,94 @@ body.clean-view .interaction-status{display:none!important}
   *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   .masthead,.onboarding>*{opacity:1;transform:none}
 }
+
+/* ================================================================ upgrade
+   Impactor class grid, numeric fields, Atlas, provenance, comparison table,
+   diagnostics. All styles live inside summoned drawers — nothing here is
+   persistent chrome, and none of it overlays the catastrophe viewport.
+==================================================================== */
+.class-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:8px 0}
+.class-swatch{display:grid;grid-template-columns:14px 1fr;grid-template-rows:auto auto;gap:2px 8px;align-items:center;text-align:left;padding:8px 10px;background:var(--strata);border:1px solid var(--line);color:var(--text);cursor:pointer;transition:border-color var(--t-fast) var(--ease-out),background var(--t-fast) var(--ease-out)}
+.class-swatch:hover{border-color:var(--line-strong)}
+.class-swatch.active{border-color:var(--ejecta);background:rgba(255,95,31,.06)}
+.class-swatch:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.swatch-dot{grid-row:span 2;width:14px;height:14px;border-radius:50%;background:#555}
+.swatch-dot[data-material="stony-silicate"]{background:radial-gradient(circle at 35% 30%,#b8977a,#6d5540 70%)}
+.swatch-dot[data-material="metallic-iron-nickel"]{background:radial-gradient(circle at 35% 30%,#e8e4da,#7d7a72 70%)}
+.swatch-dot[data-material="carbonaceous-dark"]{background:radial-gradient(circle at 35% 30%,#4c443c,#241f1a 70%)}
+.swatch-dot[data-material="rubble-pile"]{background:radial-gradient(circle at 35% 30%,#8a7358,#4a3d2e 70%)}
+.swatch-dot[data-material="cometary-icy"]{background:radial-gradient(circle at 35% 30%,#cfe8ee,#6d8a93 70%)}
+.swatch-dot[data-material="rocky-carbonaceous-reference"]{background:radial-gradient(circle at 35% 30%,#9c8a72,#3c332a 70%)}
+.swatch-label{font-size:11.5px;line-height:1.25;color:var(--text)}
+.swatch-density{grid-column:2;font-size:10.5px;color:var(--quiet)}
+
+.field-range{margin:10px 0;padding:8px 10px;background:var(--strata);border:1px solid var(--line)}
+.field-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.field-head label{font-size:12px;color:var(--iridium);letter-spacing:.04em}
+.field-head output{font-size:12px;color:var(--text)}
+.field-row{display:grid;grid-template-columns:1fr 92px auto;gap:8px;align-items:center}
+.field-row input[type="range"]{width:100%}
+.field-numeric{width:100%;padding:5px 7px;background:var(--void);border:1px solid var(--line);color:var(--text);font-family:var(--mono);font-size:12px;border-radius:0}
+.field-numeric:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.field-unit{font-size:10.5px;color:var(--quiet);white-space:nowrap}
+.field-hint{font-size:10.5px;margin:5px 0 0;line-height:1.4}
+.inline-status{font-size:11px;margin:5px 0 0;line-height:1.4}
+.inline-status[data-tone="error"]{color:#ff8d6b}
+.inline-status[data-tone="success"]{color:#9fd8a8}
+.inline-status[data-tone="idle"]{color:var(--quiet)}
+
+/* Atlas cards */
+.atlas-card{margin:10px 0;padding:10px 12px;background:var(--strata);border:1px solid var(--line);border-left:3px solid var(--line-strong)}
+.atlas-card.current{border-left-color:var(--sulfur)}
+.atlas-card h4{font-size:13px;margin:0 0 6px;color:var(--text)}
+.atlas-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.evidence-badge{border:1px solid var(--line-strong);color:var(--iridium);background:rgba(147,175,185,.08)}
+.outcome-badge{border:1px solid transparent;color:var(--text)}
+.outcome-badge.outcome-low{background:rgba(147,175,185,.14)}
+.outcome-badge.outcome-moderate{background:rgba(224,169,60,.16)}
+.outcome-badge.outcome-high{background:rgba(255,95,31,.16)}
+.outcome-badge.outcome-extreme{background:rgba(255,95,31,.30)}
+.atlas-facts{margin:8px 0;display:grid;gap:6px}
+.atlas-facts div{display:grid;grid-template-columns:96px 1fr;gap:8px}
+.atlas-facts dt{font-size:10.5px;color:var(--quiet);text-transform:uppercase;letter-spacing:.06em;padding-top:1px}
+.atlas-facts dd{margin:0;font-size:11.5px;line-height:1.45;color:var(--iridium)}
+.atlas-card button{margin-top:4px}
+
+/* Provenance */
+.provenance-row{margin:6px 0;background:var(--strata);border:1px solid var(--line)}
+.provenance-row summary{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;list-style:none;flex-wrap:wrap}
+.provenance-row summary::-webkit-details-marker{display:none}
+.provenance-row summary::before{content:"▸";color:var(--quiet);transition:transform var(--t-fast) var(--ease-out)}
+.provenance-row[open] summary::before{transform:rotate(90deg)}
+.provenance-row summary:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.category-badge{font-size:10.5px;border:1px solid var(--line-strong);color:var(--text)}
+.category-direct-calculation{border-color:rgba(191,233,245,.55);color:#bfe9f5}
+.category-reduced-order-model{border-color:rgba(224,169,60,.55);color:#e0c98a}
+.category-source-backed-categorical-reconstruction{border-color:rgba(159,216,168,.5);color:#9fd8a8}
+.category-proxy{border-color:rgba(147,175,185,.55);color:var(--iridium)}
+.category-visualization-illustration{border-color:rgba(255,95,31,.5);color:#ffb08d}
+.provenance-category-name{font-size:10.5px;color:var(--quiet)}
+.provenance-facts{margin:0 10px 8px;display:grid;gap:6px}
+.provenance-facts div{display:grid;grid-template-columns:150px 1fr;gap:8px}
+.provenance-facts dt{font-size:10.5px;color:var(--quiet);text-transform:uppercase;letter-spacing:.06em;padding-top:1px}
+.provenance-facts dd{margin:0;font-size:11.5px;line-height:1.45;color:var(--iridium)}
+.provenance-docs{margin:0 10px 9px;font-size:10.5px}
+.provenance-docs a{color:var(--focus);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+.provenance-docs a:hover{border-bottom-color:var(--focus)}
+
+/* Comparison instrument */
+.sync-line{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:11px;color:var(--iridium);flex-wrap:wrap}
+.sync-badge[data-state="held"]{border-color:var(--ejecta);color:#ffb08d}
+.cmp-table{margin:10px 0;border:1px solid var(--line)}
+.cmp-row,.cmp-head{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:6px;padding:5px 9px;font-size:11px;border-bottom:1px solid var(--line)}
+.cmp-row:last-child{border-bottom:none}
+.cmp-head{background:var(--strata);color:var(--quiet);text-transform:uppercase;font-size:10px;letter-spacing:.05em}
+.cmp-label{color:var(--iridium)}
+.cmp-a,.cmp-b{color:var(--text);overflow-wrap:anywhere}
+.cmp-row.changed .cmp-label{color:var(--sulfur)}
+
+/* Diagnostics */
+.diagnostics-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin:8px 0}
+.diagnostics-grid .metric{padding:4px 0}
+.diagnostics-grid .metric strong{font-size:10.5px}
+.diagnostics-grid .metric span{font-size:11px}

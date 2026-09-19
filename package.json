@@ -8,7 +8,9 @@
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check-project.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "smoke:webgl": "node scripts/webgl-smoke.mjs",
+    "perf": "node scripts/perf-report.mjs"
   },
   "engines": {
     "node": ">=20"

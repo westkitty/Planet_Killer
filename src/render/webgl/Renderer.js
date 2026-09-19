@@ -1,8 +1,10 @@
 import { sphereGeometry, starCloud, effectCloud } from './geometry.js';
-import { mat4Identity, mat4LookAt, mat4Multiply, mat4Perspective, mat4ScaleTranslate, add, cross, normalize, scale, lonLatToUnit, unitToLonLat, raySphere } from './matrix.js';
+import { mat4Identity, mat4Multiply, mat4Perspective, mat4LookAt, mat4ScaleTranslate, add, cross, normalize, scale, lonLatToUnit, unitToLonLat, raySphere } from './matrix.js';
 import { createProgram, createMesh, createPointCloud, createLineMesh, createTexture, updateTexture, writeTexture, uniform, destroyMesh } from './gl.js';
 import { buildSurfacePixels, buildTsunamiPixels } from './textures.js';
 import { SURFACE_VS, SURFACE_FS, ATMOSPHERE_VS, ATMOSPHERE_FS, POINT_VS, POINT_FS, IMPACTOR_VS, IMPACTOR_FS, LINE_VS, LINE_FS } from './shaders.js';
+import { Camera } from './Camera.js';
+import { PerfMonitor } from './perf.js';
 
 export const RENDER_BUDGETS = Object.freeze({
   stars: 2400,
@@ -47,8 +49,8 @@ function trajectoryDirection(target, azimuthDeg = 135) {
   return normalize(add(scale(east, Math.sin(a)), scale(north, Math.cos(a))));
 }
 
-function compositionColor(composition = '') {
-  const text = composition.toLowerCase();
+export function compositionColor(composition = '') {
+  const text = String(composition).toLowerCase();
   if (/iron|metal/.test(text)) return [0.24, 0.12, 0.07];
   if (/comet|ice/.test(text)) return [0.13, 0.14, 0.14];
   if (/rubble/.test(text)) return [0.18, 0.14, 0.10];
@@ -63,39 +65,38 @@ export class Renderer {
     const gl = this.gl;
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
 
-    this.programs = {
-      surface: createProgram(gl, SURFACE_VS, SURFACE_FS),
-      atmosphere: createProgram(gl, ATMOSPHERE_VS, ATMOSPHERE_FS),
-      point: createProgram(gl, POINT_VS, POINT_FS),
-      impactor: createProgram(gl, IMPACTOR_VS, IMPACTOR_FS),
-      line: createProgram(gl, LINE_VS, LINE_FS)
+    // Diagnostics & lifecycle state (observed by the Settings drawer and the
+    // smoke harness; never fed back into simulation inputs).
+    this.perf = new PerfMonitor();
+    this.drawStats = { drawCalls: 0, trianglesDrawn: 0, pointsDrawn: 0, linesDrawn: 0, lastRenderMs: 0, lastGLError: 'none' };
+    // Per-system draw log for the last frame: checkpoint assertions read it to
+    // prove the expected major contributions actually occurred this frame.
+    this.drawLog = [];
+    this.lifecycle = { contextLost: false, losses: 0, restorations: 0 };
+    this.onContextLost = null;
+    this.onContextRestored = null;
+
+    this._onContextLost = (event) => {
+      event.preventDefault?.();
+      this.lifecycle.contextLost = true;
+      this.lifecycle.losses++;
+      this.perf.noteContextLoss();
+      this.onContextLost?.();
     };
-    const earthGeometry = sphereGeometry(RENDER_BUDGETS.earthLatSegments, RENDER_BUDGETS.earthLonSegments);
-    this.meshes = {
-      earth: createMesh(gl, earthGeometry),
-      impactor: createMesh(gl, sphereGeometry(18, 28)),
-      stars: createPointCloud(gl, starCloud(RENDER_BUDGETS.stars, 0x51a4, { radius: 28 })),
-      milkyWay: createPointCloud(gl, starCloud(RENDER_BUDGETS.milkyWay, 0x8c31, { band: true, radius: 27 })),
-      sun: createPointCloud(gl, new Float32Array([-11, 4.5, -19, 3.8])),
-      ejecta: createPointCloud(gl, new Float32Array(RENDER_BUDGETS.ejecta * 4)),
-      plume: createPointCloud(gl, new Float32Array(RENDER_BUDGETS.plume * 4)),
-      vapor: createPointCloud(gl, new Float32Array(RENDER_BUDGETS.vapor * 4)),
-      wake: createPointCloud(gl, new Float32Array(RENDER_BUDGETS.entryWake * 4)),
-      dust: createPointCloud(gl, starCloud(RENDER_BUDGETS.dust, 0x99f2, { radius: 1.09 })),
-      reticle: createLineMesh(gl, new Float32Array(RETICLE_POINTS * 3)),
-      probes: createPointCloud(gl, new Float32Array(RENDER_BUDGETS.probes * 4))
+    this._onContextRestored = () => {
+      this._restoreResources();
+      this.lifecycle.contextLost = false;
+      this.lifecycle.restorations++;
+      this.perf.noteContextRestoration();
+      this.onContextRestored?.();
     };
-    this.effectVectors = {
-      ejecta: effectCloud(RENDER_BUDGETS.ejecta, 0x1137),
-      plume: effectCloud(RENDER_BUDGETS.plume, 0x2248),
-      vapor: effectCloud(RENDER_BUDGETS.vapor, 0x3359),
-      wake: effectCloud(RENDER_BUDGETS.entryWake, 0x446a)
-    };
-    this.camera = { yaw: -0.55, pitch: 0.24, distance: 3.9 };   // replaced by the globe framing once the target exists
-    this.cameraGoal = { ...this.camera };
-    this.cameraGlide = 0;
-    this.shake = 0;
-    this.reducedMotion = false;
+    canvas.addEventListener('webglcontextlost', this._onContextLost);
+    canvas.addEventListener('webglcontextrestored', this._onContextRestored);
+
+    this._createResources();
+
+    this.camera = new Camera();
+    this.shake = 0; // retained for compatibility; the camera owns shake now
     this.fovY = 40 * Math.PI / 180;
     this.epochId = null;
     this.scenario = null;
@@ -106,13 +107,93 @@ export class Renderer {
     this._tsunamiPixels = null;
     this._tsunamiTextureSize = null;
     this.probes = [];
-    const blank = new Uint8Array([0, 0, 0, 255]);
-    this.textures = { surface: createTexture(gl, 1, 1, blank), tsunami: createTexture(gl, 1, 1, blank) };
     this.setEpoch('cretaceous66');
     this._updateReticle();
     this.resize();                                  // sizes the canvas so fitDistance can read the frame
-    this.camera = this.cameraPreset('globe');
-    this.cameraGoal = { ...this.camera };
+    const framing = this.cameraPreset('globe');
+    this.camera.setCamera(framing, { glide: false });
+  }
+
+  /**
+   * All GPU resource creation lives here so a context restoration rebuilds the
+   * identical allocation set. Counters let the lifecycle tests assert that
+   * restoration does not leak duplicate allocations.
+   */
+  _createResources() {
+    const gl = this.gl;
+    this._allocationCount = 0;
+    const alloc = (value) => { this._allocationCount++; return value; };
+    this.programs = {
+      surface: alloc(createProgram(gl, SURFACE_VS, SURFACE_FS)),
+      atmosphere: alloc(createProgram(gl, ATMOSPHERE_VS, ATMOSPHERE_FS)),
+      point: alloc(createProgram(gl, POINT_VS, POINT_FS)),
+      impactor: alloc(createProgram(gl, IMPACTOR_VS, IMPACTOR_FS)),
+      line: alloc(createProgram(gl, LINE_VS, LINE_FS))
+    };
+    const earthGeometry = sphereGeometry(RENDER_BUDGETS.earthLatSegments, RENDER_BUDGETS.earthLonSegments);
+    this.meshes = {
+      earth: alloc(createMesh(gl, earthGeometry)),
+      impactor: alloc(createMesh(gl, sphereGeometry(18, 28))),
+      stars: alloc(createPointCloud(gl, starCloud(RENDER_BUDGETS.stars, 0x51a4, { radius: 28 }))),
+      milkyWay: alloc(createPointCloud(gl, starCloud(RENDER_BUDGETS.milkyWay, 0x8c31, { band: true, radius: 27 }))),
+      sun: alloc(createPointCloud(gl, new Float32Array([-11, 4.5, -19, 3.8]))),
+      ejecta: alloc(createPointCloud(gl, new Float32Array(RENDER_BUDGETS.ejecta * 4))),
+      plume: alloc(createPointCloud(gl, new Float32Array(RENDER_BUDGETS.plume * 4))),
+      vapor: alloc(createPointCloud(gl, new Float32Array(RENDER_BUDGETS.vapor * 4))),
+      wake: alloc(createPointCloud(gl, new Float32Array(RENDER_BUDGETS.entryWake * 4))),
+      dust: alloc(createPointCloud(gl, starCloud(RENDER_BUDGETS.dust, 0x99f2, { radius: 1.09 }))),
+      reticle: alloc(createLineMesh(gl, new Float32Array(RETICLE_POINTS * 3))),
+      probes: alloc(createPointCloud(gl, new Float32Array(RENDER_BUDGETS.probes * 4)))
+    };
+    this.effectVectors = {
+      ejecta: effectCloud(RENDER_BUDGETS.ejecta, 0x1137),
+      plume: effectCloud(RENDER_BUDGETS.plume, 0x2248),
+      vapor: effectCloud(RENDER_BUDGETS.vapor, 0x3359),
+      wake: effectCloud(RENDER_BUDGETS.entryWake, 0x446a)
+    };
+    const blank = new Uint8Array([0, 0, 0, 255]);
+    this.textures = { surface: alloc(createTexture(gl, 1, 1, blank)), tsunami: alloc(createTexture(gl, 1, 1, blank)) };
+    this._allocationCountAfterCreate = this._allocationCount;
+  }
+
+  _destroyResources() {
+    const gl = this.gl;
+    for (const program of Object.values(this.programs)) gl.deleteProgram(program);
+    for (const mesh of Object.values(this.meshes)) destroyMesh(gl, mesh);
+    for (const texture of Object.values(this.textures)) gl.deleteTexture(texture);
+    this._allocationCountBeforeDestroy = this._allocationCount;
+  }
+
+  _restoreResources() {
+    const gl = this.gl;
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    this._createResources();
+    this._writeEpochTexture(this.epochId || 'cretaceous66');
+    this._updateReticle();
+    if (this.probes.length) this.setProbes(this.probes);
+    if (this.tsunamiField) this._updateTsunamiTexture();
+    this._afterRestoreChecks(gl);
+  }
+
+  /** Post-restore consistency: nothing NaN, no GL error, resources intact. */
+  _afterRestoreChecks(gl) {
+    const { matrix: viewProj } = this._viewProjection();
+    for (const value of viewProj) if (!Number.isFinite(value)) throw new Error('Context restore produced a non-finite projection');
+    const error = gl.getError();
+    if (error !== gl.NO_ERROR) throw new Error(`Context restore left a GL error: ${error}`);
+  }
+
+  get allocationCount() { return this._allocationCount; }
+
+  /** Stable live-resource summary for the diagnostics surface. */
+  resourceSummary() {
+    let buffers = 0;
+    for (const mesh of Object.values(this.meshes)) buffers += (mesh.buffers?.length || 0) + (mesh.buffer ? 1 : 0) + (mesh.indexBuffer ? 1 : 0);
+    return {
+      programs: Object.keys(this.programs).length,
+      buffers,
+      textures: Object.keys(this.textures).length
+    };
   }
 
   resize() {
@@ -127,7 +208,7 @@ export class Renderer {
     if (this.portrait !== undefined && this.portrait !== portrait) {
       const fitted = this.fitDistance(3.9);
       this.camera.distance = fitted;
-      this.cameraGoal.distance = fitted;
+      this.camera.goal = { ...this.camera.goal, distance: fitted };
     }
     this.portrait = portrait;
   }
@@ -139,14 +220,16 @@ export class Renderer {
    */
   fitDistance(base) {
     const aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
-    if (!(aspect > 0) || aspect >= 1) return base;
-    const halfFovX = Math.atan(Math.tan(this.fovY / 2) * aspect);
-    return Math.max(base, Math.min(11, 1 / Math.sin(Math.max(0.08, halfFovX * 0.62))));
+    return this.camera.fitDistance(base, aspect);
   }
 
   setEpoch(epochId) {
     if (this.epochId === epochId) return;
     this.epochId = epochId;
+    this._writeEpochTexture(epochId);
+  }
+
+  _writeEpochTexture(epochId) {
     const image = buildSurfacePixels(epochId);
     updateTexture(this.gl, this.textures.surface, image.width, image.height, image.pixels);
   }
@@ -185,78 +268,19 @@ export class Renderer {
     const gl = this.gl, mesh = this.meshes.probes; gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer); gl.bufferSubData(gl.ARRAY_BUFFER, 0, data); mesh.count = this.probes.length;
   }
 
-  orbitBy(dx, dy) {
-    this.cameraGlide = 0;
-    this.camera.yaw += dx * 0.006;
-    this.camera.pitch = Math.max(-1.35, Math.min(1.35, this.camera.pitch + dy * 0.006));
-    this.cameraGoal = { ...this.camera };
-  }
-
-  dollyBy(delta) {
-    this.cameraGlide = 0;
-    this.camera.distance = Math.max(1.35, Math.min(14, this.camera.distance * Math.exp(delta * 0.0012)));
-    this.cameraGoal = { ...this.camera };
-  }
-
-  getCamera() { return { ...this.cameraGoal }; }
-
-  setCamera(camera, { glide = true } = {}) {
-    this.cameraGoal = { ...this.cameraGoal, ...camera };
-    if (glide && !this.reducedMotion) this.cameraGlide = 1;
-    else { this.camera = { ...this.cameraGoal }; this.cameraGlide = 0; }
-  }
-
-  setReducedMotion(value) { this.reducedMotion = Boolean(value); }
-
-  /** True when the impact site is on the near face and clear of the limb. */
-  targetInFrame() {
-    const eye = this.cameraEye(), length = Math.hypot(...eye) || 1;
-    return (eye[0] * this.target[0] + eye[1] * this.target[1] + eye[2] * this.target[2]) / length > 0.35;
-  }
-
-  /** Camera framings are expressed relative to the target so the impact is always composed, never hunted for. */
+  orbitBy(dx, dy) { this.camera.orbitBy(dx, dy); }
+  dollyBy(delta) { this.camera.dollyBy(delta); }
+  getCamera() { return this.camera.getCamera(); }
+  setCamera(camera, options) { this.camera.setCamera(camera, options); }
+  setReducedMotion(value) { this.camera.setReducedMotion(value); }
+  targetInFrame() { return this.camera.targetInFrame(this.target); }
   cameraPreset(name) {
-    const ll = unitToLonLat(this.target), yaw = ll.longitude * Math.PI / 180, pitch = ll.latitude * Math.PI / 180;
-    if (name === 'impact') return { yaw, pitch, distance: this.fitDistance(2.35) };
-    if (name === 'trajectory') return { yaw: yaw - 0.92, pitch: pitch * 0.5 + 0.16, distance: this.fitDistance(3.6) };
-    if (name === 'chase') return { yaw: yaw + 0.48, pitch: pitch * 0.6 + 0.06, distance: this.fitDistance(2.85) };
-    if (name === 'space') return { yaw: yaw - 0.38, pitch: 0.44, distance: this.fitDistance(7.2) };
-    return { yaw: yaw - 0.34, pitch: pitch * 0.55 + 0.12, distance: this.fitDistance(3.9) };
+    return this.camera.preset(name, this.target, base => this.fitDistance(base));
   }
-
   setCameraPreset(name, options) { this.setCamera(this.cameraPreset(name), options); }
-
-  /** Advance the eased camera and the impact shake. Called once per frame. */
-  stepCamera(dt) {
-    if (this.cameraGlide > 0) {
-      const k = 1 - Math.exp(-dt * 4.6);
-      let delta = this.cameraGoal.yaw - this.camera.yaw;
-      delta -= Math.round(delta / (Math.PI * 2)) * Math.PI * 2;
-      this.camera.yaw += delta * k;
-      this.camera.pitch += (this.cameraGoal.pitch - this.camera.pitch) * k;
-      this.camera.distance += (this.cameraGoal.distance - this.camera.distance) * k;
-      if (Math.abs(delta) < 1e-4 && Math.abs(this.cameraGoal.pitch - this.camera.pitch) < 1e-4 && Math.abs(this.cameraGoal.distance - this.camera.distance) < 1e-4) {
-        this.camera = { ...this.cameraGoal };
-        this.cameraGlide = 0;
-      }
-    }
-    this.shake = Math.max(0, this.shake - dt * 1.9);
-  }
-
-  /** A short, decaying handheld kick at contact. Suppressed under reduced motion. */
-  punch(strength = 1) { if (!this.reducedMotion) this.shake = Math.max(this.shake, Math.min(1, strength)); }
-
-  cameraEye() {
-    const c = Math.cos(this.camera.pitch);
-    const eye = [this.camera.distance * c * Math.cos(this.camera.yaw), this.camera.distance * Math.sin(this.camera.pitch), this.camera.distance * c * Math.sin(this.camera.yaw)];
-    if (this.shake > 0) {
-      const s = this.shake * this.shake * 0.028, t = this.visual.time || 0;
-      eye[0] += Math.sin(t * 91.7 + 1.3) * s;
-      eye[1] += Math.sin(t * 73.1 + 2.9) * s;
-      eye[2] += Math.sin(t * 111.3 + 0.7) * s;
-    }
-    return eye;
-  }
+  stepCamera(dt) { this.camera.stepCamera(dt); }
+  punch(strength = 1) { this.camera.punch(strength); }
+  cameraEye() { return this.camera.eye(this.visual.time); }
 
   pick(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
@@ -264,7 +288,7 @@ export class Renderer {
     const y = 1 - (clientY - rect.top) / Math.max(1, rect.height) * 2;
     const eye = this.cameraEye(), forward = normalize(scale(eye, -1));
     let right = normalize(cross(forward, UP)); if (Math.hypot(...right) < 0.01) right = [1, 0, 0];
-    const up = normalize(cross(right, forward)), tan = Math.tan(this.fovY / 2), aspect = rect.width / Math.max(1, rect.height);
+    const up = normalize(cross(right, forward)), tan = Math.tan(this.camera.fovY / 2), aspect = rect.width / Math.max(1, rect.height);
     const offset = this.frameOffset();
     const direction = normalize(add(forward, add(scale(right, (x - offset.x) * tan * aspect), scale(up, (y - offset.y) * tan))));
     const hit = raySphere(eye, direction, 1);
@@ -274,6 +298,13 @@ export class Renderer {
   frameOffset() {
     const wide = this.canvas.clientWidth >= 900 && this.canvas.clientWidth > this.canvas.clientHeight;
     return wide ? { x: 0.15, y: 0.06 } : { x: 0, y: 0.40 };
+  }
+
+  /** Public, read-only projection state for checkpoint assertions. */
+  projectionState() {
+    const { eye, matrix } = this._viewProjection();
+    const allFinite = [...eye, ...matrix].every(Number.isFinite);
+    return { eye, matrix, allFinite };
   }
 
   _viewProjection() {
@@ -342,18 +373,26 @@ export class Renderer {
     const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer); gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
   }
 
-  _drawMesh(program, mesh, viewProj, model = IDENTITY) {
+  _drawMesh(program, mesh, viewProj, model = IDENTITY, system = 'mesh') {
     const gl = this.gl; gl.useProgram(program); uniform(gl, program, 'uViewProj', viewProj); uniform(gl, program, 'uModel', model); gl.bindVertexArray(mesh.vao);
-    if (mesh.indexed) gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0); else gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+    if (mesh.indexed) { gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0); this.drawStats.trianglesDrawn += Math.floor(mesh.count / 3); }
+    else { gl.drawArrays(gl.TRIANGLES, 0, mesh.count); this.drawStats.trianglesDrawn += Math.floor(mesh.count / 3); }
+    this.drawStats.drawCalls++;
+    this.drawLog.push({ system, type: 'triangles', count: mesh.count });
   }
 
-  _drawPoints(mesh, viewProj, color, size, intensity, soft = 1) {
+  _drawPoints(mesh, viewProj, color, size, intensity, soft = 1, system = 'points') {
     if (!(intensity > 0) || !mesh.count) return;
     const gl = this.gl, p = this.programs.point; gl.useProgram(p); uniform(gl, p, 'uViewProj', viewProj); uniform(gl, p, 'uColor', color); uniform(gl, p, 'uSize', size); uniform(gl, p, 'uIntensity', intensity); uniform(gl, p, 'uSoft', soft); gl.bindVertexArray(mesh.vao); gl.drawArrays(gl.POINTS, 0, mesh.count);
+    this.drawStats.drawCalls++; this.drawStats.pointsDrawn += mesh.count;
+    this.drawLog.push({ system, type: 'points', count: mesh.count, intensity });
   }
 
   render() {
     this.resize();
+    const started = (globalThis.performance?.now?.() ?? Date.now()) / 1000;
+    this.drawStats = { drawCalls: 0, trianglesDrawn: 0, pointsDrawn: 0, linesDrawn: 0, lastRenderMs: 0, lastGLError: this.drawStats.lastGLError };
+    this.drawLog = [];
     const gl = this.gl, { eye, matrix: viewProj } = this._viewProjection(), v = this.visual;
     const sun = sunDirection(this.target);
     const dust = Math.max(0, Math.min(1, v.dust ?? v.atmosphere ?? 0));
@@ -362,9 +401,9 @@ export class Renderer {
 
     // Deep field first, additively, with depth writes off: space sits behind everything.
     gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-    this._drawPoints(this.meshes.milkyWay, viewProj, [0.46, 0.52, 0.72], 3.6, 0.42, 1);
-    this._drawPoints(this.meshes.stars, viewProj, [0.88, 0.92, 1.0], 2.9, 1.0, 0.3);
-    this._drawPoints(this.meshes.sun, viewProj, [1.0, 0.93, 0.74], 9.0, 1.0, 1);
+    this._drawPoints(this.meshes.milkyWay, viewProj, [0.46, 0.52, 0.72], 3.6, 0.42, 1, 'milkyWay');
+    this._drawPoints(this.meshes.stars, viewProj, [0.88, 0.92, 1.0], 2.9, 1.0, 0.3, 'stars');
+    this._drawPoints(this.meshes.sun, viewProj, [1.0, 0.93, 0.74], 9.0, 1.0, 1, 'sun');
     gl.enable(gl.DEPTH_TEST); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     const { east } = targetBasis(this.target);
@@ -384,6 +423,8 @@ export class Renderer {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.textures.surface); gl.uniform1i(gl.getUniformLocation(surface, 'uSurface'), 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.textures.tsunami); gl.uniform1i(gl.getUniformLocation(surface, 'uTsunami'), 1);
     gl.bindVertexArray(this.meshes.earth.vao); gl.drawElements(gl.TRIANGLES, this.meshes.earth.count, gl.UNSIGNED_INT, 0);
+    this.drawStats.drawCalls++; this.drawStats.trianglesDrawn += Math.floor(this.meshes.earth.count / 3);
+    this.drawLog.push({ system: 'surface', type: 'triangles', count: this.meshes.earth.count, darkness: v.darkness || 0, flash: (v.contactFlash || 0) * 0.85, tsunamimix: v.tsunami || 0 });
 
     gl.enable(gl.BLEND); gl.depthMask(false); gl.cullFace(gl.FRONT);
     const atmosphere = this.programs.atmosphere; gl.useProgram(atmosphere);
@@ -392,16 +433,20 @@ export class Renderer {
     uniform(gl, atmosphere, 'uDarkness', v.darkness || 0); uniform(gl, atmosphere, 'uDust', dust);
     uniform(gl, atmosphere, 'uFlash', (v.contactFlash || 0) * 0.45); uniform(gl, atmosphere, 'uThermal', thermal * 0.7);
     gl.bindVertexArray(this.meshes.earth.vao); gl.drawElements(gl.TRIANGLES, this.meshes.earth.count, gl.UNSIGNED_INT, 0);
+    this.drawStats.drawCalls++; this.drawStats.trianglesDrawn += Math.floor(this.meshes.earth.count / 3);
+    this.drawLog.push({ system: 'atmosphere', type: 'triangles', count: this.meshes.earth.count });
     gl.cullFace(gl.BACK); gl.depthMask(true);
 
     if ((v.time ?? -30) < 0.12) {
       const p = this.programs.impactor, center = this._impactorCenter(), diameter = this.scenario?.impactor?.diameterM || 12000;
       gl.useProgram(p); uniform(gl, p, 'uViewProj', viewProj); uniform(gl, p, 'uCenter', center); uniform(gl, p, 'uScale', Math.max(0.010, Math.min(0.042, diameter / 12742000 * 5.6))); uniform(gl, p, 'uDeform', /rubble/i.test(this.scenario?.impactor?.composition || '') ? 0.22 : 0.12); uniform(gl, p, 'uColor', compositionColor(this.scenario?.impactor?.composition)); uniform(gl, p, 'uHeating', v.entryHeating || 0); gl.bindVertexArray(this.meshes.impactor.vao); gl.drawElements(gl.TRIANGLES, this.meshes.impactor.count, gl.UNSIGNED_INT, 0);
+      this.drawStats.drawCalls++; this.drawStats.trianglesDrawn += Math.floor(this.meshes.impactor.count / 3);
+      this.drawLog.push({ system: 'impactor', type: 'triangles', count: this.meshes.impactor.count });
       if (v.entryHeating > 0) {
         this._updateCloud(this.meshes.wake, this.effectVectors.wake, center, 0.042, 0.42, Math.max(0.2, v.entryHeating));
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-        this._drawPoints(this.meshes.wake, viewProj, [1.0, 0.44, 0.12], 11.0, v.entryHeating * 0.34, 1);
-        this._drawPoints(this.meshes.wake, viewProj, [1.0, 0.82, 0.52], 4.5, v.entryHeating * 0.95, 0.4);
+        this._drawPoints(this.meshes.wake, viewProj, [1.0, 0.44, 0.12], 11.0, v.entryHeating * 0.34, 1, 'wake');
+        this._drawPoints(this.meshes.wake, viewProj, [1.0, 0.82, 0.52], 4.5, v.entryHeating * 0.95, 0.4, 'wake');
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       }
     }
@@ -412,26 +457,34 @@ export class Renderer {
     this._updateCloud(this.meshes.plume, this.effectVectors.plume, origin, 0.16, 0.62, plumePhase);
     this._updateCloud(this.meshes.vapor, this.effectVectors.vapor, origin, 0.24, 0.44, plumePhase);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-    this._drawPoints(this.meshes.ejecta, viewProj, [1.0, 0.36, 0.09], 4.2, (v.ejecta || 0) * 0.95, 1);
-    this._drawPoints(this.meshes.plume, viewProj, [0.80, 0.58, 0.42], 9.0, (v.plume || 0) * 0.62, 1);
-    this._drawPoints(this.meshes.vapor, viewProj, [0.66, 0.62, 0.58], 12.0, (v.plume || 0) * 0.24, 1);
+    this._drawPoints(this.meshes.ejecta, viewProj, [1.0, 0.36, 0.09], 4.2, (v.ejecta || 0) * 0.95, 1, 'ejecta');
+    this._drawPoints(this.meshes.plume, viewProj, [0.80, 0.58, 0.42], 9.0, (v.plume || 0) * 0.62, 1, 'plume');
+    this._drawPoints(this.meshes.vapor, viewProj, [0.66, 0.62, 0.58], 12.0, (v.plume || 0) * 0.24, 1, 'vapor');
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    this._drawPoints(this.meshes.dust, viewProj, [0.34, 0.29, 0.25], 3.0, dust * 0.34, 1);
+    this._drawPoints(this.meshes.dust, viewProj, [0.34, 0.29, 0.25], 3.0, dust * 0.34, 1, 'dust');
 
     if ((v.time ?? -30) < 0) {
       const line = this.programs.line, pulse = 0.5 + 0.5 * Math.sin((v.time || 0) * 3.4);
       gl.useProgram(line); uniform(gl, line, 'uViewProj', viewProj); uniform(gl, line, 'uModel', IDENTITY);
       uniform(gl, line, 'uColor', [1.0, 0.46, 0.18, 0.55 + 0.45 * pulse]);
       gl.bindVertexArray(this.meshes.reticle.vao); gl.drawArrays(gl.LINES, 0, this.meshes.reticle.count);
+      this.drawStats.drawCalls++; this.drawStats.linesDrawn += this.meshes.reticle.count / 2;
+      this.drawLog.push({ system: 'reticle', type: 'lines', count: this.meshes.reticle.count });
     }
-    this._drawPoints(this.meshes.probes, viewProj, [0.52, 0.96, 1.0], 6.5, 0.95, 1);
+    this._drawPoints(this.meshes.probes, viewProj, [0.52, 0.96, 1.0], 6.5, 0.95, 1, 'probes');
     gl.disable(gl.BLEND); gl.bindVertexArray(null);
+
+    const ended = (globalThis.performance?.now?.() ?? Date.now()) / 1000;
+    this.drawStats.lastRenderMs = (ended - started) * 1000;
+    this.perf.addRenderTime(ended - started);
+    const error = gl.getError();
+    this.drawStats.lastGLError = error === gl.NO_ERROR ? 'none' : `0x${error.toString(16).toUpperCase()}`;
+    this.drawStats.lastFrameError = error !== gl.NO_ERROR;
   }
 
   dispose() {
-    const gl = this.gl;
-    for (const program of Object.values(this.programs)) gl.deleteProgram(program);
-    for (const mesh of Object.values(this.meshes)) destroyMesh(gl, mesh);
-    for (const texture of Object.values(this.textures)) gl.deleteTexture(texture);
+    this._destroyResources();
+    this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this._onContextRestored);
   }
 }

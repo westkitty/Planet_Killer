@@ -13,7 +13,12 @@ Automated source/render contracts pass, but a decisive GPU-rendered QA session h
 | Encirclement / winter | jump to Atmospheric encirclement and Impact winter | atmosphere/dust state communicates global change without replacing Earth with an overlay map |
 | Recovery | jump to Early recovery | long-timescale state remains deterministic and camera remains controllable |
 | Present day | Impactor drawer → Present day | modern GSHHG-derived land/sea and ETOPO1 visual relief are visibly distinct from the 66 Ma proxy |
-| Comparison | choose a comparison preset; hold `B` | A/B switches at the same modeled time and clearly reflects target-dependent differences |
+| Comparison | choose a comparison preset **or an Atlas target**; hold `B` | A/B switches at the same modeled time and clearly reflects target-dependent differences; table rows carry evidence-state labels (no "better/more accurate" wording) |
+| Counterfactual Atlas | edge button `⌖` (atlas drawer) | ten curated entries with name, epoch, coordinates, summary; every entry shows a distinct **evidence badge** (source strength) and an **outcome badge** (intensity class) that are visually separate; "Apply" moves the target, the reticle, and the scenario state together |
+| Impactor class | Impactor drawer → class grid | six class cards with material swatches; applying a class sets defaults, the numeric fields reflect them, and a later manual edit sticks (no snap-back); out-of-envelope edits show an inline advisory, out-of-range edits are refused inline |
+| Provenance (Science drawer) | open Science drawer | every major output row carries a category badge (Direct calculation / Reduced-order model / Source-backed categorical reconstruction / Proxy / Visualization-illustration), the four answers (what, model, source strength, limitation), and an offline-safe doc link |
+| Diagnostics (Settings drawer) | open Settings drawer | live frame/render/draw-call/primitive/worker/atlas/context/resource numbers with a refresh control; chrome is drawer-scoped and disappears when closed |
+| 66 Ma WIS | 66 Ma epoch, pan over western North America | the Western Interior Seaway renders as ocean (lighter shelf band where the categorical shallow zone applies) and targets placed in it resolve as `western-interior-seaway`, not land |
 
 ## Interaction review
 
@@ -45,4 +50,4 @@ Use Settings → **Capture clean frame**. Verify:
 
 ## Current blocker
 
-If the available browser cannot initialize WebGL2/EGL/ANGLE, record that as an environment limitation rather than treating a static build as rendered visual proof. See `docs/VALIDATION.md` for the current evidence state.
+If the available browser cannot initialize WebGL2/EGL/ANGLE, record that as an environment limitation rather than treating a static build as rendered visual proof. In this container the classifier has already run: `npm run smoke:webgl` returns exit 3 `no-browser-executable-found` with the full detection evidence in `docs/qa/webgl-smoke-report.json`. That report, not a static build, is the record of the blocker. See `docs/VALIDATION.md` for the current evidence state.
